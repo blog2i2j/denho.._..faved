@@ -3,6 +3,7 @@
 namespace Controllers;
 
 use Framework\ControllerInterface;
+use Framework\Exceptions\DataWriteException;
 use Framework\Exceptions\ValidationException;
 use Framework\Responses\ResponseInterface;
 use Framework\ServiceContainer;
@@ -43,7 +44,15 @@ class ItemsCreateController implements ControllerInterface
 
 		$item_id = $repository->createItem($title, $description, $url, $comments, $image);
 
-		$repository->setItemTags($new_tag_ids, $item_id);
+		if (!$item_id) {
+			throw new DataWriteException('Item creation failed');
+		}
+
+		$result = $repository->setItemTags($new_tag_ids, $item_id);
+
+		if (!$result) {
+			throw new DataWriteException('Setting item tags failed');
+		}
 
 		return success('Item created successfully', [
 			'item_id' => $item_id,

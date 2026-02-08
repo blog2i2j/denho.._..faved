@@ -3,27 +3,23 @@
 namespace Controllers;
 
 use Framework\ControllerInterface;
-use Framework\Exceptions\ValidationException;
 use Framework\Responses\ResponseInterface;
+use Respect\Validation\Validator;
 use Utils\DOMParser;
-use function Framework\data;
+use function Framework\success;
 use function Utils\fetchPageHTML;
 use function Utils\resolveUrl;
 
 class UrlMetadataController implements ControllerInterface
 {
+	public function validateInput(): Validator
+	{
+		return Validator::key('url', Validator::url()->setName('URL'));
+	}
+
 	public function __invoke(array $input): ResponseInterface
 	{
-		$url = $input['url'] ?? null;
-
-		if (empty($url)) {
-			throw new ValidationException('URL is required');
-		}
-
-		// Validate URL format
-		if (!filter_var($url, FILTER_VALIDATE_URL)) {
-			throw new ValidationException('Invalid URL format');
-		}
+		$url = $input['url'];
 
 		$html = fetchPageHTML($url);
 
@@ -34,15 +30,14 @@ class UrlMetadataController implements ControllerInterface
 			$image_url = resolveUrl($image_url, $url);
 		}
 
-		return data([
-			'success' => true,
-			'message' => 'Metadata fetched successfully',
-			'data' => [
+		return success(
+			'Metadata fetched successfully',
+			[
 				'title' => $parser->extractTitle() ?? parse_url($url, PHP_URL_HOST),
 				'description' => $parser->extractDescription() ?? '',
-				'image_url' => $image_url ?? '',
+				'image' => $image_url ?? '',
 				'url' => $url
 			]
-		]);
+		);
 	}
 }

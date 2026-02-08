@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -20,8 +20,9 @@ import { Sorter } from '../components/Table/Controls/Sorter.tsx';
 import { Pagination } from '../components/Table/Controls/Pagination.tsx';
 import { CardsLayout } from '../components/Table/Layouts/CardsLayout.tsx';
 import { PreviewImage } from '@/components/Table/Fields/PreviewImage.tsx';
-import { ActionType, ItemType, LayoutType } from '@/lib/types.ts';
+import { ActionType, ItemType, LayoutType, TagFilterType } from '@/lib/types.ts';
 import { ItemsActions } from '@/components/Table/Fields/ItemActions.tsx';
+import Loading from '@/layouts/Loading.tsx';
 import {
   cn,
   getSavedLayoutColumnVisibilityPreference,
@@ -49,6 +50,8 @@ import { Separator } from '@/components/ui/separator.tsx';
 import { Dashboard } from '@/layouts/Dashboard.tsx';
 import { Checkbox } from '@/components/ui/checkbox.tsx';
 import { BulkActionControls } from '@/components/Table/Controls/BulkActionControls.tsx';
+import { useUrlState } from '@/hooks/useUrlState.ts';
+import { useItemListState } from '@/hooks/useItemListState.ts';
 
 const columns: ColumnDef<ItemType>[] = [
   {
@@ -86,7 +89,7 @@ const columns: ColumnDef<ItemType>[] = [
     enableHiding: true,
     cell: ({ row }) => {
       const imageURL = row.getValue('image') as string;
-      return imageURL && <PreviewImage imageUrl={imageURL} className="" />;
+      return imageURL && <PreviewImage imageUrl={imageURL} itemId={row.original.id} />;
     },
   },
   {
@@ -127,25 +130,25 @@ const columns: ColumnDef<ItemType>[] = [
     enableHiding: true,
     meta: { class: 'min-w-xs' },
 
-    filterFn: (row, columnId, filterValue) => {
-      if (filterValue === '0') {
+    filterFn: (row, columnId, filterValue: TagFilterType) => {
+      if (filterValue === null) {
         return true;
       }
-      const tags = row.getValue('tags') as number[];
-      if (filterValue === null && tags.length === 0) {
+      const tagIDs = row.getValue('tags') as number[];
+      if (filterValue === 'none' && tagIDs.length === 0) {
         return true;
       }
 
-      return tags.includes(Number(filterValue) as unknown as number);
+      return tagIDs.includes(filterValue as number);
     },
     cell: ({ row }) => {
-      const tags = row.getValue('tags') as number[];
-      if (tags.length === 0) {
+      const tagIDs = row.getValue('tags') as number[];
+      if (tagIDs.length === 0) {
         return null;
       }
       return (
         <div className="flex w-full flex-wrap gap-1 py-2 leading-6.5">
-          {tags.map((tagID) => (
+          {tagIDs.map((tagID) => (
             <TagBadge key={tagID} tagID={tagID} />
           ))}
         </div>
@@ -185,28 +188,48 @@ const columns: ColumnDef<ItemType>[] = [
     cell: ({ row }) => <ItemsActions row={row} />,
     enableSorting: false,
     enableHiding: false,
-    meta: { isAction: true },
+    meta: { isAction: true, isPinned: true },
   },
 ];
 
-export const ItemList: React.FC = observer(() => {
+const Table: React.FC = observer(() => {
   const store = React.useContext(StoreContext);
-  const data = store.items;
-  const [globalFilter, setGlobalFilter] = React.useState<any>([]);
-  const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
+
+  const { searchParams, setUrlState } = useUrlState();
+  const pageIndexParam = useMemo(() => Number(searchParams.get('page') ?? 1) - 1, [searchParams]);
+  const pageSizeParam = useMemo(() => Number(searchParams.get('per_page') ?? 25), [searchParams]);
+  const sortByParam = useMemo(() => searchParams.get('sort') ?? 'created_at', [searchParams]);
+  const isSortOrderDescParam = useMemo(() => searchParams.get('order') !== 'asc', [searchParams]);
+  const searchKeywordParam = useMemo(() => searchParams.get('search') ?? '', [searchParams]);
+  const tagFilterParam: number | 'none' | null = useMemo(() => {
+    const value = searchParams.get('tag');
+    if (value === 'none' || value === null) {
+      return value;
+    }
+    return Number(value);
+  }, [searchParams]);
+
+  const [globalFilter, setGlobalFilter] = React.useState<string>(searchKeywordParam);
+  const isInitialMount = React.useRef(true);
+  const columnFilters: ColumnFiltersState = [
+    {
+      id: 'tags',
+      value: isInitialMount ? (store.tagFilter ?? tagFilterParam) : store.tagFilter,
+    },
+  ];
   const [rowSelection, setRowSelection] = React.useState({});
   const [layout, setLayout] = useState<LayoutType>(getSavedLayoutPreference());
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>(
     getSavedLayoutColumnVisibilityPreference(layout)
   );
   const [pagination, setPagination] = useState({
-    pageIndex: 0,
-    pageSize: 25,
+    pageIndex: pageIndexParam,
+    pageSize: pageSizeParam,
   });
   const [sorting, setSorting] = React.useState<SortingState>([
     {
-      id: 'created_at',
-      desc: true,
+      id: sortByParam,
+      desc: isSortOrderDescParam,
     },
   ]);
   const [columnOrder, setColumnOrder] = useState<string[]>([
@@ -222,43 +245,115 @@ export const ItemList: React.FC = observer(() => {
     'actions',
   ]);
 
+  /**
+   * State and URL syncing
+   */
+  // Search >
+  const setGlobalFilterFromTable = (updaterOrValue) => {
+    const newGlobalFilter = typeof updaterOrValue === 'function' ? updaterOrValue(globalFilter) : updaterOrValue;
+    setGlobalFilter(newGlobalFilter);
+    setPagination((oldValue) => {
+      return {
+        pageIndex: 0,
+        pageSize: oldValue.pageSize,
+      };
+    });
+  };
+
+  // Update state from navigation changes
   useEffect(() => {
-    setColumnFilters([
-      {
-        id: 'tags',
-        value: store.selectedTagId,
-      },
-    ]);
-    table.firstPage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [store.selectedTagId]);
+    if (globalFilter === searchKeywordParam) {
+      return;
+    }
+    setGlobalFilter(searchKeywordParam);
+  }, [searchKeywordParam]);
+
+  // Update URL from state change with delay
+  useEffect(() => {
+    if (globalFilter === searchKeywordParam) {
+      return;
+    }
+
+    const timeoutId = setTimeout(() => {
+      setUrlState({
+        search: globalFilter,
+        // Preventing race conditions
+        page: 1,
+      });
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [globalFilter]);
+  // ^ Search
+
+  // Pagination >
+  const setPaginationFromTable = (updaterOrValue) => {
+    const newPagination = typeof updaterOrValue === 'function' ? updaterOrValue(pagination) : updaterOrValue;
+
+    setPagination(newPagination);
+    setUrlState({
+      page: newPagination.pageIndex + 1,
+      per_page: newPagination.pageSize,
+    });
+  };
+
+  // Update state from navigation changes
+  useEffect(() => {
+    if (pagination.pageIndex === pageIndexParam && pagination.pageSize === pageSizeParam) {
+      return;
+    }
+
+    setPagination({
+      pageIndex: pageIndexParam,
+      pageSize: pageSizeParam,
+    });
+  }, [pageIndexParam, pageSizeParam]);
+  // ^ Pagination
+
+  // Sorting >
+  // Update state from navigation changes
+  useEffect(() => {
+    if (sorting[0].id === sortByParam && sorting[0].desc === isSortOrderDescParam) {
+      return;
+    }
+
+    updateSorting(sortByParam, isSortOrderDescParam, true);
+  }, [sortByParam, isSortOrderDescParam]);
+  // ^ Sorting
+
+  // Tag >
+  const { setTagFilter } = useItemListState();
+  // Update state from navigation changes
+  useEffect(() => {
+    isInitialMount.current = false;
+    if (store.tagFilter === tagFilterParam) {
+      return;
+    }
+
+    setTagFilter(tagFilterParam, true);
+  }, [tagFilterParam]);
+  // ^ Tag
+  /**
+   * End of state and URL syncing
+   */
 
   useEffect(() => {
     const savedColumnVisibility = getSavedLayoutColumnVisibilityPreference(layout);
     setColumnVisibility(savedColumnVisibility);
   }, [layout]);
 
-  useEffect(() => {
-    if (table.getState().pagination.pageIndex >= table.getPageCount()) {
-      table.lastPage();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
-
   const table = useReactTable({
-    data,
+    data: store.items,
     columns,
-    onSortingChange: setSorting,
-    onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
     onColumnVisibilityChange: setColumnVisibility,
     onRowSelectionChange: setRowSelection,
-    onGlobalFilterChange: setGlobalFilter,
+    onGlobalFilterChange: setGlobalFilterFromTable,
     onColumnOrderChange: setColumnOrder,
-    onPaginationChange: setPagination,
+    onPaginationChange: setPaginationFromTable,
     globalFilterFn: 'includesString',
     autoResetPageIndex: false,
     state: {
@@ -275,17 +370,38 @@ export const ItemList: React.FC = observer(() => {
   const sortableColumns = table.getAllColumns().filter((column) => column.getCanSort());
   const visibilityToggleColumns = table.getAllColumns().filter((column) => column.getCanHide());
 
-  const updateSorting = (columnId: string, isDesc: boolean) => {
+  useEffect(() => {
+    if (table.getState().pagination.pageIndex >= table.getPageCount()) {
+      table.lastPage();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [table.getPageCount()]);
+
+  const updateSorting = (columnId: string, isDesc: boolean, skipURLUpdate: boolean = false) => {
     setSorting([
       {
         id: columnId,
         desc: isDesc,
       },
     ]);
-    table.firstPage();
+    setPagination((oldValue) => {
+      return {
+        pageIndex: 0,
+        pageSize: oldValue.pageSize,
+      };
+    });
+    if (skipURLUpdate) {
+      return;
+    }
+
+    setUrlState({
+      sort: columnId,
+      order: isDesc ? 'desc' : 'asc',
+      page: 1,
+    });
   };
 
-  const updateLayout = (newValue) => {
+  const updateLayout = (newValue: LayoutType) => {
     setLayout(newValue);
     saveLayoutPreference(newValue);
   };
@@ -314,7 +430,7 @@ export const ItemList: React.FC = observer(() => {
   };
 
   return (
-    <Dashboard>
+    <>
       <header className="bg-background sticky top-0 z-50 flex h-(--header-height) w-full items-center gap-1.5 border-b px-4 backdrop-blur-sm group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
         <SidebarTrigger />
         <Separator orientation="vertical" className="mx-1 data-[orientation=vertical]:h-8" />
@@ -368,6 +484,30 @@ export const ItemList: React.FC = observer(() => {
         )}
         <BulkActionControls table={table} />
       </div>
-    </Dashboard>
+    </>
   );
 });
+
+export const ItemList = () => {
+  const store = useContext(StoreContext);
+
+  const [isLoading, setIsLoading] = useState(true);
+  useEffect(() => {
+    const loadData = async () => {
+      await Promise.all([store.fetchItems(), store.fetchTags()]);
+      setIsLoading(false);
+    };
+
+    loadData();
+  }, [store]);
+
+  if (isLoading) {
+    return <Loading />;
+  }
+
+  return (
+    <Dashboard>
+      <Table />
+    </Dashboard>
+  );
+};

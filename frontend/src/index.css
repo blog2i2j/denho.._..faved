@@ -207,7 +207,7 @@ a:hover {
     }
 
     .item__image {
-      @apply h-auto max-h-[250px] w-auto rounded-sm;
+      @apply h-auto max-h-[250px] w-auto min-w-[50px] rounded-sm;
     }
 
     .actions-container {
@@ -236,6 +236,12 @@ a:hover {
 
   .created_at-container + .updated_at-container {
     @apply -mt-1;
+  }
+}
+
+.bookmark_item {
+  .item__image {
+    @apply min-w-[50px];
   }
 }
 

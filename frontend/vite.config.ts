@@ -21,6 +21,10 @@ export default defineConfig({
         target: 'http://host.docker.internal:' + (process.env.BACKEND_PORT || '8000'),
         changeOrigin: true,
       },
+      '/content': {
+        target: 'http://host.docker.internal:' + (process.env.BACKEND_PORT || '8000'),
+        changeOrigin: true,
+      },
     },
   },
 });

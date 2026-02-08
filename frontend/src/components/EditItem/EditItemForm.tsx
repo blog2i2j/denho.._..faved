@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo } from 'react';
+import React, { useContext, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,13 +9,16 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../ui/form';
 import { ActionType, ItemSchema, ItemType, UrlSchema } from '@/lib/types.ts';
 import { useLocation } from 'react-router-dom';
-import { IconCloudDownload, IconProgress } from '@tabler/icons-react';
+import { CheckCircle, Download, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-import { ImagePreview } from '@/components/EditItem/ImagePreview.tsx';
 import { toast } from 'sonner';
 import { Spinner } from '@/components/ui/spinner.tsx';
 import { Separator } from '@/components/ui/separator.tsx';
 import { DeleteDialog } from '@/components/Table/Controls/DeleteDialog.tsx';
+import { PreviewImage } from '@/components/Table/Fields/PreviewImage.tsx';
+import { safeDecodeURI, safeDecodeURIComponent } from '@/lib/utils.ts';
+import { DuplicatesList } from '@/components/EditItem/DuplicatesList.tsx';
+import { observer } from 'mobx-react-lite';
 
 interface EditItemFormProps {
   isCloseWindowOnSubmit: boolean;
@@ -33,18 +36,12 @@ const INITIAL_ITEM_DATA: ItemType = {
   updated_at: undefined,
 };
 
-const safeDecodeURIComponent = (encodedURI: string): string => {
-  try {
-    return encodedURI ? decodeURIComponent(encodedURI) : '';
-  } catch {
-    return encodedURI || '';
-  }
-};
-
-const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
+const EditItemForm = observer(({ isCloseWindowOnSubmit }: EditItemFormProps) => {
   const store = useContext(StoreContext);
   const location = useLocation();
   const [isMetadataLoading, setIsMetadataLoading] = React.useState(false);
+  const [isSubmitSuccess, setIsSubmitSuccess] = React.useState(false);
+  const [closeCountdown, setCloseCountdown] = React.useState(1);
 
   const currentItem = useMemo(() => {
     if (store.type === ActionType.EDIT && store.items.length > 0) {
@@ -57,6 +54,23 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
     resolver: zodResolver(ItemSchema),
     defaultValues: currentItem,
   });
+
+  let imageUrl = form.watch('image');
+  try {
+    imageUrl = UrlSchema.parse(imageUrl);
+  } catch {
+    /* empty */
+  }
+  const [forceImageRefetch, setForceImageRefetch] = React.useState(false);
+  const initialImageUrl = useRef(imageUrl);
+
+  // Force image refetch if the image URL has changed
+  useEffect(() => {
+    if (imageUrl === initialImageUrl.current || forceImageRefetch) {
+      return;
+    }
+    setForceImageRefetch(true);
+  }, [imageUrl, forceImageRefetch]);
 
   const urlParams = useMemo(() => {
     const searchParams = new URLSearchParams(location.search);
@@ -85,9 +99,9 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
     let result;
 
     if (store.type === ActionType.EDIT && values.id) {
-      result = await store.onUpdateItem(values, values.id);
+      result = await store.updateItem(values, values.id, forceImageRefetch);
     } else {
-      result = await store.onCreateItem(values);
+      result = await store.createItem(values, isCloseWindowOnSubmit);
     }
     if (!result) {
       return;
@@ -96,7 +110,7 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
   };
 
   const handleSaveCopy = async (values: ItemType) => {
-    const result = await store.onCreateItem(values);
+    const result = await store.createItem(values);
     if (!result) {
       return;
     }
@@ -113,15 +127,29 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
 
   const success = () => {
     if (isCloseWindowOnSubmit) {
-      setTimeout(() => {
-        window.close();
-      }, 1000);
+      setIsSubmitSuccess(true);
     } else {
       store.fetchItems();
       store.setIsShowEditModal(false);
       form.reset();
     }
   };
+
+  // Countdown timer for auto-close
+  useEffect(() => {
+    if (!isSubmitSuccess || !isCloseWindowOnSubmit) return;
+
+    if (closeCountdown <= 0) {
+      window.close();
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setCloseCountdown((prev) => prev - 1);
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [isSubmitSuccess, isCloseWindowOnSubmit, closeCountdown]);
 
   const cancel = () => {
     if (isCloseWindowOnSubmit) {
@@ -154,7 +182,7 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
 
     setIsMetadataLoading(true);
 
-    const data: { data: { title: string; description: string; image_url: string } } =
+    const data: { data: { title: string; description: string; image: string } } =
       await store.fetchUrlMetadata(processedUrl);
 
     setIsMetadataLoading(false);
@@ -165,7 +193,10 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
 
     form.setValue('title', data.data.title || '');
     form.setValue('description', data.data.description || '');
-    form.setValue('image', data.data.image_url || '');
+    form.setValue('image', safeDecodeURI(data.data.image || ''));
+
+    // Force image refetch after metadata update to update the preview
+    setForceImageRefetch(true);
   };
 
   const renderTextField = (name: keyof ItemType, label: string, isDisabled = false) => (
@@ -222,7 +253,7 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
                   : '')
               }
               onChange={field.onChange}
-              values={field.value ?? []}
+              tagIDs={field.value ?? []}
             />
           </FormControl>
         </FormItem>
@@ -230,11 +261,16 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
     />
   );
 
-  let imageUrl = form.watch('image');
-  try {
-    imageUrl = UrlSchema.parse(imageUrl);
-  } catch {
-    /* empty */
+  if (isSubmitSuccess && isCloseWindowOnSubmit) {
+    return (
+      <div className="flex h-[100dvh] flex-col items-center justify-center p-6">
+        <CheckCircle className="mb-4 h-16 w-16" />
+        <h2 className="mb-2 text-xl font-semibold">Bookmark Saved!</h2>
+        <p className="text-muted-foreground">
+          This window will close in {closeCountdown} second{closeCountdown !== 1 ? 's' : ''}...
+        </p>
+      </div>
+    );
   }
 
   return (
@@ -246,6 +282,7 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
           <h2 className="mb-3 text-left text-xl font-semibold tracking-tight">
             {store.type === ActionType.EDIT ? 'Edit Bookmark' : 'Create Bookmark'}
           </h2>
+          {store.type !== ActionType.EDIT && <DuplicatesList url={form.watch('url')} />}
           <div className="space-y-4 py-4">
             <div className="grid gap-3">
               <FormField
@@ -272,7 +309,7 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
                                 variant="outline"
                                 disabled={isMetadataLoading}
                               >
-                                {isMetadataLoading ? <IconProgress className="animate-spin" /> : <IconCloudDownload />}
+                                {isMetadataLoading ? <Loader2 className="animate-spin" /> : <Download />}
                               </Button>
                             </TooltipTrigger>
                             <TooltipContent>Pull title, description and image from the URL.</TooltipContent>
@@ -293,7 +330,20 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
             <div className="flex flex-col gap-3 sm:flex-row">
               <div className="grow"> {renderTextField('image', 'Image URL')}</div>
               <div className="min-h-16 min-w-16 sm:max-w-[40%]">
-                <ImagePreview imageUrl={imageUrl} />
+                {imageUrl === '' ? (
+                  <div
+                    className="text-muted-foreground flex h-16 w-16 items-center justify-center rounded-full bg-gray-200"
+                    title="No image"
+                  >
+                    <ImageIcon />
+                  </div>
+                ) : (
+                  <PreviewImage
+                    imageUrl={imageUrl}
+                    itemId={!forceImageRefetch && store.type === ActionType.EDIT && store.idItem ? store.idItem : null}
+                    className="max-h-[100px] w-auto rounded-sm object-contain shadow-sm"
+                  />
+                )}
               </div>
             </div>
 
@@ -353,6 +403,6 @@ const EditItemForm = ({ isCloseWindowOnSubmit }: EditItemFormProps) => {
       </form>
     </Form>
   );
-};
+});
 
 export default EditItemForm;

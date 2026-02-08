@@ -71,3 +71,19 @@ export const getCookie = (name: string) => {
   // If the cookie was not found
   return null;
 };
+
+export const safeDecodeURIComponent = (encodedURI: string): string => {
+  try {
+    return encodedURI ? decodeURIComponent(encodedURI) : '';
+  } catch {
+    return encodedURI || '';
+  }
+};
+
+export const safeDecodeURI = (encodedURI: string): string => {
+  try {
+    return encodedURI ? decodeURI(encodedURI) : '';
+  } catch {
+    return encodedURI || '';
+  }
+};

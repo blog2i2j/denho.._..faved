@@ -7,13 +7,11 @@ import { observer } from 'mobx-react-lite';
 
 export const NavTags = observer(() => {
   const store = React.useContext(StoreContext);
-  const allTags = store.tags as unknown as Record<string, TagType>;
-  const selectedTag = store.selectedTagId ? allTags[store.selectedTagId] : null;
+  const selectedTag = store.tags[store.tagFilter] ?? null;
 
-  function renderTag(parentID: string | number, level = 0): React.JSX.Element[] {
+  function renderTag(parentID: number, level = 0): React.JSX.Element[] {
     const output: React.JSX.Element[] = [];
-    const tags = Object.values(allTags).filter((tag: TagType) => tag.parent === parentID);
-
+    const tags: TagType[] = Object.values(store.tags).filter((tag: TagType) => tag.parent === parentID) as TagType[];
     tags.sort((a, b) => {
       if (a.pinned && !b.pinned) return -1;
       if (!a.pinned && b.pinned) return 1;
@@ -24,7 +22,7 @@ export const NavTags = observer(() => {
 
     for (const tag of tags) {
       const innerItems = renderTag(tag.id, level);
-      const isTagSelected = store.selectedTagId === tag.id;
+      const isTagSelected = store.tagFilter === tag.id;
       const isChildTagSelected = !isTagSelected && selectedTag && selectedTag.fullPath.indexOf(tag.fullPath) === 0;
 
       const code = (
@@ -47,7 +45,7 @@ export const NavTags = observer(() => {
     <SidebarGroup>
       <SidebarGroupLabel>Tags</SidebarGroupLabel>
       <SidebarGroupContent className="flex flex-col gap-2">
-        <SidebarMenu>{renderTag('0')}</SidebarMenu>
+        <SidebarMenu>{renderTag(0)}</SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
   );

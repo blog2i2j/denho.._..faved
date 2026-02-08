@@ -47,21 +47,21 @@ export const ItemSchema = z.object({
 export type ItemType = z.infer<typeof ItemSchema>;
 
 export type TagType = {
-  id: number | string;
-  parent: number | string; // Or number | undefined // Assuming parent is also a tag ID. Could also be Tag | null
+  id: number;
+  parent: number;
   title: string;
-  description?: string; // Optional
+  description?: string;
   color: string;
-  pinned: boolean; // Or boolean if you prefer
+  pinned: boolean;
   created_at: string;
   updated_at: string | null;
   fullPath: any;
 };
-export type TagsObjectType = {
-  [tagId: number | string]: TagType; // Use number if tagId is a number, otherwise use string
-};
+export type TagsObjectType = Record<number, TagType>;
 
 export type LayoutType = 'table' | 'cards' | 'list';
+
+export type TagFilterType = number | 'none' | null;
 
 export enum ActionType {
   CREATE = 'CREATE',

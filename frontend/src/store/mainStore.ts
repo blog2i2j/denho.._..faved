@@ -6,6 +6,7 @@ import {
   CreateUserType,
   ItemType,
   LoginType,
+  TagFilterType,
   TagsObjectType,
   TagType,
   UpdatePasswordType,
@@ -16,16 +17,16 @@ import { getCookie } from '@/lib/utils.ts';
 
 class mainStore {
   items: ItemType[] = [];
-  tags: TagsObjectType[] = [];
+  tags: TagsObjectType = [];
   type: ActionType = '' as ActionType;
   user: UserType | null = null;
   idItem: number | undefined = undefined;
-  isAuthRequired = false;
-  showInitializeDatabasePage = false;
+  isAuthRequired = null;
+  isSetupRequired = null;
   error: string | null = null;
   isOpenSettingsModal: boolean = false;
   preSelectedItemSettingsModal: string | null = null;
-  selectedTagId: string | null = '0'; // Default to '0' for no tag selected
+  tagFilter: TagFilterType = null; // Default to null for no tag selected. 'none' for without any tags
   isShowEditModal: boolean = false;
   appInfo: {
     installed_version: string | null;
@@ -62,16 +63,14 @@ class mainStore {
 
     return fetch(endpoint, options)
       .then((response) => {
+        this.setIsAuthRequired(response.status === 401);
+
+        this.setIsSetupRequired(response.status === 424);
+
         if (response.ok) {
           return response.json();
         }
 
-        if (response.status === 401) {
-          this.setIsAuthRequired(true);
-        }
-        if (response.status === 424) {
-          this.setIsshowInitializeDatabasePage(true);
-        }
         return response.json().then((data) => {
           throw new Error(data.message || `HTTP error! status: ${response.status}`);
         });
@@ -92,11 +91,11 @@ class mainStore {
         return null;
       });
   };
-  setIsshowInitializeDatabasePage = (val: boolean) => {
-    this.showInitializeDatabasePage = val;
+  setIsSetupRequired = (val: boolean) => {
+    this.isSetupRequired = val;
   };
-  setCurrentTagId = (val: string | null | number) => {
-    this.selectedTagId = val === null ? null : val.toString();
+  setTagFilter = (val: TagFilterType) => {
+    this.tagFilter = val;
   };
   setUser = (user: UserType) => {
     this.user = user;
@@ -111,8 +110,8 @@ class mainStore {
   setTags = (tags: TagsObjectType) => {
     const renderTagSegment = (tag: TagType) => {
       let output = '';
-      if (tag.parent !== '0') {
-        const parentTag = Object.values(tags).find((t) => t.id.toString() === tag.parent.toString());
+      if (tag.parent !== 0) {
+        const parentTag = Object.values(tags).find((t) => t.id === tag.parent);
         if (parentTag) {
           output += renderTagSegment(parentTag) + '/';
         }
@@ -122,16 +121,12 @@ class mainStore {
     };
 
     for (const tagID in tags) {
-      const tagId = tagID.toString();
-      tags[tagId] = {
-        ...tags[tagId],
-        id: tags[tagId].id.toString(),
-        parent: tags[tagId].parent.toString(),
-        fullPath: renderTagSegment(tags[tagId]),
-        pinned: !!tags[tagId].pinned,
-      };
+      const tag = tags[tagID];
+      tag.fullPath = renderTagSegment(tag);
+      tag.pinned = !!tag.pinned;
     }
-    this.tags = tags as unknown as TagsObjectType[];
+
+    this.tags = tags as TagsObjectType;
   };
   setIsAuthRequired = (val: boolean) => {
     this.isAuthRequired = val;
@@ -144,12 +139,12 @@ class mainStore {
       this.setTags(data);
     });
   };
-  createTag = async (title: string) => {
+  createTag = async (title: string): Promise<number | null> => {
     let tagID = null;
 
     await this.runRequest(API_ENDPOINTS.tags.create, 'POST', { title }, 'Error creating tag')
       .then((data) => {
-        tagID = data?.data?.tag_id || null;
+        tagID = (data?.data?.tag_id as number) || null;
       })
       .finally(() => {
         this.fetchTags();
@@ -167,41 +162,38 @@ class mainStore {
       this.fetchItems();
     });
   };
-  onChangeTagTitle = async (tagID: string, title: string) => {
+  onChangeTagTitle = async (tagID: number, title: string) => {
     this.runRequest(API_ENDPOINTS.tags.updateTitle(tagID), 'PATCH', { title }, 'Error updating tag title').finally(
       () => {
         this.fetchTags();
       }
     );
   };
-  onChangeTagColor = async (tagID: string, color: string) => {
+  onChangeTagColor = async (tagID: number, color: string) => {
     return this.runRequest(
       API_ENDPOINTS.tags.updateColor(tagID),
       'PATCH',
       { color },
       'Error updating tag color'
     ).finally(() => {
-      const tag = { ...this.tags[tagID as unknown as number], color };
+      const tag = { ...this.tags[tagID], color };
       this.tags = { ...this.tags, [tagID]: tag };
     });
   };
-  onChangeTagPinned = async (tagID: string, pinned: boolean) => {
+  onChangeTagPinned = async (tagID: number, pinned: boolean) => {
     return this.runRequest(
       API_ENDPOINTS.tags.updatePinned(tagID),
       'PATCH',
       { pinned },
       'Error updating tag pinned'
     ).finally(() => {
-      const tag = { ...this.tags[tagID as unknown as number], pinned };
+      const tag = { ...this.tags[tagID], pinned };
       this.tags = { ...this.tags, [tagID]: tag };
     });
   };
 
   setItems = (val: ItemType[]) => {
     this.items = val;
-  };
-  createItem = (val: ItemType) => {
-    this.items = this.items.concat(val);
   };
   setType = (val: ActionType) => {
     this.type = val;
@@ -216,7 +208,7 @@ class mainStore {
     this.preSelectedItemSettingsModal = val;
   };
   fetchItems = async () => {
-    return this.runRequest(API_ENDPOINTS.items.list, 'GET', {}, 'Failed to fetch items').then((data) => {
+    return await this.runRequest(API_ENDPOINTS.items.list, 'GET', {}, 'Failed to fetch items').then((data) => {
       if (data === null) {
         return;
       }
@@ -225,7 +217,7 @@ class mainStore {
   };
   deleteItems = async (itemIds: number[]) => {
     return await this.runRequest(
-      '/api/items/delete',
+      API_ENDPOINTS.items.deleteItems,
       'POST',
       {
         'item-ids': itemIds,
@@ -235,7 +227,7 @@ class mainStore {
   };
   refetchItemsMetadata = async (itemIds: number[]) => {
     return await this.runRequest(
-      '/api/items/fetch-metadata',
+      API_ENDPOINTS.items.refetchItemsMetadata,
       'POST',
       {
         'item-ids': itemIds,
@@ -253,7 +245,7 @@ class mainStore {
     newSelectedTagsSome: string[];
   }) => {
     return await this.runRequest(
-      '/api/items/tags',
+      API_ENDPOINTS.items.updateItemsTags,
       'PATCH',
       {
         'item-ids': itemIds,
@@ -263,25 +255,24 @@ class mainStore {
       'Failed to update items tags'
     );
   };
-  onCreateItem = async (val: ItemType) => {
-    return this.sendItemRequest(API_ENDPOINTS.items.createItem, 'POST', val);
+  createItem = async (data: ItemType, skipSuccessMessage: boolean = false) => {
+    data.url = encodeURI(decodeURI(data.url));
+    data.image = encodeURI(decodeURI(data.image));
+
+    return this.runRequest(API_ENDPOINTS.items.createItem, 'POST', data, 'Failed to create item', skipSuccessMessage);
   };
-  onUpdateItem = async (val: ItemType, itemId) => {
-    return this.sendItemRequest(API_ENDPOINTS.items.updateItem(itemId), 'PATCH', val);
-  };
-  sendItemRequest = async (endpoint, method, val: ItemType) => {
+  updateItem = async (data: ItemType, itemId, forceImageRefetch: boolean) => {
+    data.url = encodeURI(decodeURI(data.url));
+    data.image = encodeURI(decodeURI(data.image));
+
     return this.runRequest(
-      endpoint,
-      method,
+      API_ENDPOINTS.items.updateItem(itemId),
+      'PATCH',
       {
-        title: val.title || '',
-        description: val.description || '',
-        url: val.url || '',
-        comments: val.comments || '',
-        image: val.image || '',
-        tags: val.tags,
-      },
-      'Failed to create item'
+        ...data,
+        ...{ 'force-image-refetch': forceImageRefetch },
+      } as ItemType & { 'force-image-refetch': boolean },
+      'Failed to update item'
     );
   };
   getUser = async (noErrorEmit: boolean = false) => {
@@ -374,7 +365,7 @@ class mainStore {
         return false;
       }
       this.setIsAuthRequired(false);
-      this.setIsshowInitializeDatabasePage(false);
+      this.setIsSetupRequired(false);
       return true;
     });
   };
@@ -410,7 +401,12 @@ class mainStore {
   };
 
   fetchUrlMetadata = async (url: string) => {
-    return this.runRequest(API_ENDPOINTS.urlMetdata.fetch(url), 'GET', {}, 'Error fetching metadata from URL');
+    return this.runRequest(
+      '/api/url/fetch-metadata',
+      'POST',
+      { url: encodeURI(decodeURI(url)) },
+      'Error fetching metadata from URL'
+    );
   };
 
   getAppInfo = async () => {

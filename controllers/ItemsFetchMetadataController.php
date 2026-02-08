@@ -39,7 +39,7 @@ class ItemsFetchMetadataController implements ControllerInterface
 				$image_url = resolveUrl($image_url, $url);
 			}
 
-			if (!isset($title, $description, $image_url)) {
+			if (!isset($title) && !isset($description) && !isset($image_url)) {
 				$failed_reasons[$url] = 'Failed to extract metadata';
 				return;
 			}

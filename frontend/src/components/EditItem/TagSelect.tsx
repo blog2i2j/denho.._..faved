@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useContext, useEffect, useMemo } from 'react';
 import { Check, ChevronsUpDown } from 'lucide-react';
 
 import { cn } from '@/lib/utils.ts';
@@ -8,54 +9,32 @@ import { Button } from '@/components/ui/button.tsx';
 import { Command, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command.tsx';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { observer } from 'mobx-react-lite';
-import { useContext, useEffect } from 'react';
 import { StoreContext } from '@/store/storeContext.ts';
 import { toJS } from 'mobx';
 import { TagsObjectType } from '@/lib/types.ts';
 import { getColorClass, TagBadgeMini } from '@/components/Table/Fields/TagBadge.tsx';
 
 const TagEdit = observer(
-  ({
-    className,
-    values,
-    onChange,
-  }: {
-    className?: string;
-    values: Array<string> | undefined;
-    onChange: (values: string[]) => void;
-  }) => {
+  ({ className, tagIDs, onChange }: { className?: string; tagIDs: number[]; onChange: (values: number[]) => void }) => {
     const store = useContext(StoreContext);
     const [open, setOpen] = React.useState(false);
-    const [selected, setSelected] = React.useState(values.map((v) => v.toString()));
+    const [selectedTags, setSelectedTags] = React.useState(tagIDs);
     const [query, setQuery] = React.useState('');
-
-    const getSortedTags = (tags, selectedTag) => {
-      const t = Object.values(toJS(tags as TagsObjectType[]));
+    const sortedTags = useMemo(() => {
+      const t = Object.values(toJS(store.tags as TagsObjectType));
       t.sort((a, b) => {
-        return (
-          Number(selectedTag.includes(b.id as unknown as string)) -
-          Number(selectedTag.includes(a.id as unknown as string))
-        );
+        return Number(selectedTags.includes(b.id)) - Number(selectedTags.includes(a.id));
       });
       return t;
-    };
-    const [tags, setTags] = React.useState([]);
-
-    React.useEffect(() => {
-      setTags(getSortedTags(store.tags, selected));
-    }, [store.tags, selected]);
+    }, [store.tags, selectedTags]);
 
     useEffect(() => {
       store.fetchTags();
     }, [store]);
 
     React.useEffect(() => {
-      onChange(selected);
-    }, [selected, onChange]);
-
-    const sort = () => {
-      setTags(getSortedTags(store.tags, selected));
-    };
+      onChange(selectedTags);
+    }, [selectedTags, onChange]);
 
     return (
       <Popover
@@ -66,7 +45,6 @@ const TagEdit = observer(
             return;
           }
           setQuery('');
-          sort();
         }}
       >
         <PopoverTrigger asChild>
@@ -77,9 +55,7 @@ const TagEdit = observer(
             className={['flex h-auto w-full justify-start text-left whitespace-normal'].join(' ')}
           >
             <div className="flex flex-wrap gap-1">
-              {selected.length > 0
-                ? selected.map((tagId) => <TagBadgeMini tagID={tagId as unknown as number} />)
-                : 'Select tags...'}
+              {selectedTags.length > 0 ? selectedTags.map((tagId) => <TagBadgeMini tagID={tagId} />) : 'Select tags...'}
             </div>
             <ChevronsUpDown className="ml-auto opacity-50" />
           </Button>
@@ -97,30 +73,31 @@ const TagEdit = observer(
             <CommandList className="max-h-[25dvh] overflow-y-scroll">
               {/*<CommandEmpty>No tags found.</CommandEmpty>*/}
               <CommandGroup>
-                {tags
+                {sortedTags
                   .filter((tag) => tag.fullPath.toLowerCase().includes(query.toLowerCase().trim()))
                   .map((tag) => (
                     <CommandItem
                       className="flex items-center gap-3"
                       key={tag.id}
-                      value={tag.id}
+                      // Need to convert to string because CommandItem expects value to be string, otherwise it will fallback to inner text (presumably)
+                      value={tag.id.toString()}
                       keywords={[tag.fullPath]}
                       onSelect={(currentValue) => {
-                        setSelected(
-                          selected.includes(currentValue)
-                            ? selected.filter((val) => val !== currentValue)
-                            : [...selected, currentValue]
+                        const val = Number(currentValue);
+                        setSelectedTags((prev) =>
+                          prev.includes(val) ? prev.filter((tagID) => val !== tagID) : [...prev, val]
                         );
                       }}
                     >
                       <span className={`h-3 w-3 flex-none rounded-full ${getColorClass(tag.color)}`}></span>
                       <span>{tag.fullPath}</span>
-                      <Check className={cn('ml-auto', selected.includes(tag.id) ? 'opacity-100' : 'opacity-0')} />
+                      <Check className={cn('ml-auto', selectedTags.includes(tag.id) ? 'opacity-100' : 'opacity-0')} />
                     </CommandItem>
                   ))}
 
                 {query.length > 1 &&
-                  typeof tags.find((t) => t.fullPath.toLowerCase() === query.trim().toLowerCase()) === 'undefined' && (
+                  typeof sortedTags.find((t) => t.fullPath.toLowerCase() === query.trim().toLowerCase()) ===
+                    'undefined' && (
                     <CommandItem
                       forceMount={true}
                       key="new_item"
@@ -128,11 +105,10 @@ const TagEdit = observer(
                       // keywords={[tag.fullPath]}
                       onSelect={async () => {
                         const newTagID = await store.createTag(query);
-                        if (!newTagID) {
+                        if (newTagID === null) {
                           return;
                         }
-                        setSelected([...selected, newTagID.toString()]);
-                        // sort();
+                        setSelectedTags((prev) => [...prev, Number(newTagID)]);
                         // setQuery('');
                         // setOpen(false)
                       }}

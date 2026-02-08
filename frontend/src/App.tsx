@@ -1,6 +1,6 @@
-import { createBrowserRouter, Navigate, Outlet, useLocation, useMatches } from 'react-router-dom';
+import { createBrowserRouter, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { observer } from 'mobx-react-lite';
-import { useContext, useEffect, useState } from 'react';
+import { useContext, useEffect } from 'react';
 import { StoreContext } from './store/storeContext';
 import { Login } from './pages/Login.tsx';
 import { Setup } from './pages/Setup.tsx';
@@ -14,35 +14,15 @@ import { RouterProvider } from 'react-router';
 import { Spinner } from '@/components/ui/spinner.tsx';
 import { ItemList } from '@/pages/ItemList.tsx';
 
-const SetupMiddleware = observer(() => {
-  const location = useLocation();
-  const matches = useMatches();
-  const currentRouteMatch = matches[matches.length - 1];
-  const currentRouteId = currentRouteMatch?.id;
-
+const InitMiddleware = observer(() => {
   const store = useContext(StoreContext);
-  const [isLoading, setIsLoading] = useState(true);
-
-  const isDashboardPage = currentRouteId === 'dashboard';
-  useEffect(() => {
-    if (!isDashboardPage) {
-      return;
-    }
-
-    store.getAppInfo();
-  }, [isDashboardPage, store]);
 
   useEffect(() => {
-    const loadData = async () => {
-      // this call sets up store.showInitializeDatabasePage
-      await store.getUser(true);
-      setIsLoading(false);
-    };
-
-    loadData();
+    // This call sets up store.isAuthRequired and store.isSetupRequired, which are used further
+    store.getUser(true);
   }, [store]);
 
-  if (isLoading) {
+  if (store.isSetupRequired === null || store.isAuthRequired === null) {
     return (
       <div className="bg-background flex h-full min-h-screen w-full flex-col items-center justify-center">
         <Spinner className="h-10 w-10" />
@@ -50,17 +30,30 @@ const SetupMiddleware = observer(() => {
     );
   }
 
-  // If we are not on the setup page while DB is not initialized, redirect to setup
-  const isSetupPage = currentRouteId === 'setup';
+  return (
+    <>
+      <Outlet />
+      <Toaster />
+    </>
+  );
+});
 
-  if (!isSetupPage && store.showInitializeDatabasePage) {
-    return <Navigate to="/setup" replace />;
-  }
+const AuthMiddleware = observer(() => {
+  const store = useContext(StoreContext);
+  const location = useLocation();
 
-  // If we are not on the login page while not signed in, redirect to login
-  const isLoginPage = currentRouteId === 'auth-login';
-  if (!isLoginPage && store.isAuthRequired) {
+  if (store.isAuthRequired) {
     return <Navigate to="/login" replace state={{ from: location }} />;
+  }
+  return <Outlet />;
+});
+
+const SetupMiddleware = observer(() => {
+  const store = useContext(StoreContext);
+
+  // If we are not on the setup page while DB is not initialized, redirect to setup
+  if (store.isSetupRequired) {
+    return <Navigate to="/setup" replace />;
   }
 
   // Otherwise continue
@@ -69,27 +62,30 @@ const SetupMiddleware = observer(() => {
 
 const router = createBrowserRouter([
   {
-    element: <SetupMiddleware />,
+    element: <InitMiddleware />,
     children: [
-      { path: '/', element: <ItemList />, id: 'dashboard' },
-      { path: '/login', element: <Login />, id: 'auth-login' },
+      {
+        element: <SetupMiddleware />,
+        children: [
+          { path: '/login', element: <Login /> },
+          {
+            element: <AuthMiddleware />,
+            children: [
+              { path: '/', element: <ItemList /> },
+              { path: '/setup/auth', element: <SetupAuth /> },
+              { path: '/setup/import', element: <SetupImport /> },
+              { path: '/setup/bookmarklet', element: <SetupBookmarklet /> },
+              { path: '/create-item', element: <EditItemForm isCloseWindowOnSubmit={true} /> },
+            ],
+          },
+        ],
+      },
       { path: '/setup', element: <Setup />, id: 'setup' },
-      { path: '/setup/auth', element: <SetupAuth /> },
-      { path: '/setup/import', element: <SetupImport /> },
-      { path: '/setup/bookmarklet', element: <SetupBookmarklet /> },
-      { path: '/create-item', element: <EditItemForm isCloseWindowOnSubmit={true} /> },
     ],
   },
   { path: '*', element: <NotFound /> },
 ]);
 
-const App = observer(() => {
-  return (
-    <>
-      <RouterProvider router={router} />
-      <Toaster />
-    </>
-  );
-});
-
-export default App;
+export const App = () => {
+  return <RouterProvider router={router} />;
+};

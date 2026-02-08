@@ -3,21 +3,23 @@ import globals from 'globals';
 import reactHooks from 'eslint-plugin-react-hooks';
 // import reactRefresh from 'eslint-plugin-react-refresh'
 import tseslint from 'typescript-eslint';
-import { defineConfig, globalIgnores } from 'eslint/config';
 import prettier from 'eslint-plugin-prettier';
 
-export default defineConfig([
-  globalIgnores(['dist']),
+export default [
+  {
+    ignores: ['dist/**'],
+  },
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  // {
+  //   ...reactRefresh.configs.vite,
+  //   ignores: ['src/components/ui/**'],
+  // },
   {
     files: ['**/*.{ts,tsx}'],
     ignores: ['**/vite.config.ts'],
-    extends: [
-      js.configs.recommended,
-      tseslint.configs.recommended,
-      reactHooks.configs['recommended-latest'],
-      // reactRefresh.configs.vite,
-    ],
     plugins: {
+      'react-hooks': reactHooks,
       prettier,
     },
     languageOptions: {
@@ -25,6 +27,7 @@ export default defineConfig([
       globals: globals.browser,
     },
     rules: {
+      ...reactHooks.configs.recommended.rules,
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'error',
       'react-hooks/rules-of-hooks': 'error',
@@ -38,4 +41,4 @@ export default defineConfig([
       'no-undef': 'error',
     },
   },
-]);
+];

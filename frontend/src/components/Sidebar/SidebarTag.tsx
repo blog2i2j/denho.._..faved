@@ -22,6 +22,8 @@ import {
 import { StoreContext } from '@/store/storeContext.ts';
 import { colorMap } from '@/lib/utils.ts';
 import { getColorClass } from '@/components/Table/Fields/TagBadge.tsx';
+import { useItemListState } from '@/hooks/useItemListState.ts';
+import { TagType } from '@/lib/types.ts';
 
 export function SidebarTag({
   tag,
@@ -30,7 +32,7 @@ export function SidebarTag({
   isTagSelected,
   isChildTagSelected,
 }: {
-  tag: any;
+  tag: TagType;
   innerItems?: React.ReactNode[];
   level: number;
   isTagSelected: boolean;
@@ -55,6 +57,7 @@ export function SidebarTag({
 
   const store = React.useContext(StoreContext);
   const { isMobile, toggleSidebar } = useSidebar();
+  const { setTagFilter } = useItemListState();
 
   const deleteTag = () => {
     store.onDeleteTag(tag.id);
@@ -83,8 +86,7 @@ export function SidebarTag({
     if (isRenaming) {
       return;
     }
-
-    store.setCurrentTagId(tag.id);
+    setTagFilter(tag.id);
     if (isMobile) {
       toggleSidebar();
     }

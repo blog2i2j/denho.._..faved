@@ -19,7 +19,7 @@ export const Setup = observer(() => {
     setIsLoading(false);
   };
 
-  if (!isLoading && !store.showInitializeDatabasePage) {
+  if (!isLoading && !store.isSetupRequired) {
     return <Navigate to="/" replace />;
   }
 

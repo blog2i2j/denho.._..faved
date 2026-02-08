@@ -7,7 +7,7 @@ import { Kbd } from '@/components/ui/kbd.tsx';
 
 interface DataTableToolbarProps<TData> {
   table: Table<TData>;
-  globalFilter: any;
+  globalFilter: string;
 }
 
 export function Search<TData>({ table, globalFilter }: DataTableToolbarProps<TData>) {
@@ -15,7 +15,6 @@ export function Search<TData>({ table, globalFilter }: DataTableToolbarProps<TDa
 
   const updateSearch = (value: string) => {
     table.setGlobalFilter(value);
-    table.firstPage();
   };
 
   return (

@@ -43,6 +43,7 @@ export const BulkActionControls = ({ table }) => {
       newSelectedTagsSome,
     });
     await store.fetchItems();
+    return true;
   };
 
   if (table.getFilteredSelectedRowModel().rows.length === 0) {
@@ -59,9 +60,12 @@ export const BulkActionControls = ({ table }) => {
     (count, tagID) => ((count[tagID] = (count[tagID] || 0) + 1), count),
     {}
   );
-  const selectedTagsAll = Object.keys(selectedTagsCount).filter((tag) => selectedTagsCount[tag] === selectedRowsCount);
-  const selectedTagsSome = Object.keys(selectedTagsCount).filter((tag) => selectedTagsCount[tag] < selectedRowsCount);
-
+  const selectedTagsAll = Object.keys(selectedTagsCount)
+    .filter((tagID) => selectedTagsCount[tagID] === selectedRowsCount)
+    .map((tagID) => Number(tagID));
+  const selectedTagsSome = Object.keys(selectedTagsCount)
+    .filter((tagID) => selectedTagsCount[tagID] < selectedRowsCount)
+    .map((tagID) => Number(tagID));
   return (
     <div
       className={cn(

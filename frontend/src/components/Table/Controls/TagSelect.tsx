@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { ReactNode, useContext } from 'react';
+import { ReactNode, useContext, useMemo } from 'react';
 import {
   Command,
   CommandEmpty,
@@ -29,38 +29,38 @@ export const TagSelect = observer(
     children,
   }: {
     className?: string;
-    selectedTagsAll: Array<string>;
-    selectedTagsSome: Array<string>;
-    onSubmit: ({ newSelectedTagsAll, newSelectedTagsSome }) => void;
+    selectedTagsAll: number[];
+    selectedTagsSome: number[];
+    onSubmit: ({ newSelectedTagsAll, newSelectedTagsSome }) => Promise<boolean>;
     children: ReactNode;
   }) => {
     const store = useContext(StoreContext);
-    const [tagList, setTagList] = React.useState([]);
+    const [sortedTags, setSortedTags] = React.useState([]);
     const [newSelectedTagsAll, setNewSelectedTagsAll] = React.useState(selectedTagsAll);
     const [newSelectedTagsSome, setNewSelectedTagsSome] = React.useState(selectedTagsSome);
     const [query, setQuery] = React.useState('');
     const [open, setOpen] = React.useState(false);
     const [isSubmitInProgress, setIsSubmitInProgress] = React.useState(false);
 
-    const isChanged: boolean =
-      newSelectedTagsSome.length !== selectedTagsSome.length ||
-      newSelectedTagsAll.length !== selectedTagsAll.length ||
-      newSelectedTagsAll.some((tag) => !selectedTagsAll.includes(tag)) ||
-      selectedTagsAll.some((tag) => !newSelectedTagsAll.includes(tag));
+    const isChanged: boolean = useMemo(
+      () =>
+        newSelectedTagsSome.length !== selectedTagsSome.length ||
+        newSelectedTagsAll.length !== selectedTagsAll.length ||
+        newSelectedTagsAll.some((tag) => !selectedTagsAll.includes(tag)) ||
+        selectedTagsAll.some((tag) => !newSelectedTagsAll.includes(tag)),
+      [newSelectedTagsAll, newSelectedTagsSome, selectedTagsAll, selectedTagsSome]
+    );
 
     const getSortedTags = (tags, selectedTags) => {
-      const t = Object.values(toJS(tags as TagsObjectType[]));
+      const t = Object.values(toJS(tags as TagsObjectType));
       t.sort((a, b) => {
-        return (
-          Number(selectedTags.includes(b.id as unknown as string)) -
-          Number(selectedTags.includes(a.id as unknown as string))
-        );
+        return Number(selectedTags.includes(b.id)) - Number(selectedTags.includes(a.id));
       });
       return t;
     };
 
     React.useEffect(() => {
-      setTagList(getSortedTags(store.tags, [...newSelectedTagsAll, ...newSelectedTagsSome]));
+      setSortedTags(getSortedTags(store.tags, [...newSelectedTagsAll, ...newSelectedTagsSome]));
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [store.tags]);
 
@@ -68,7 +68,7 @@ export const TagSelect = observer(
       setQuery('');
       setNewSelectedTagsAll(selectedTagsAll);
       setNewSelectedTagsSome(selectedTagsSome);
-      setTagList(getSortedTags(store.tags, [...selectedTagsAll, ...selectedTagsSome]));
+      setSortedTags(getSortedTags(store.tags, [...selectedTagsAll, ...selectedTagsSome]));
     };
 
     return (
@@ -96,21 +96,22 @@ export const TagSelect = observer(
             <CommandList className="max-h-[25dvh] overflow-y-scroll">
               <CommandEmpty>No tags found.</CommandEmpty>
               <CommandGroup>
-                {tagList
+                {sortedTags
                   .filter((tag) => tag.fullPath.toLowerCase().includes(query.toLowerCase().trim()))
                   .map((tag) => (
                     <CommandItem
                       className="flex items-center gap-3"
                       key={tag.id}
-                      value={tag.id}
+                      // Need to convert to string because CommandItem expects value to be string, otherwise it will fallback to inner text (presumably)
+                      value={tag.id.toString()}
                       keywords={[tag.fullPath]}
                       onSelect={(currentValue) => {
-                        setNewSelectedTagsSome(newSelectedTagsSome.filter((val) => val !== tag.id));
+                        const val = Number(currentValue);
 
-                        setNewSelectedTagsAll(
-                          newSelectedTagsAll.includes(currentValue)
-                            ? newSelectedTagsAll.filter((val) => val !== currentValue)
-                            : [...newSelectedTagsAll, currentValue]
+                        setNewSelectedTagsSome((prev) => prev.filter((tagID) => tagID !== tag.id));
+
+                        setNewSelectedTagsAll((prev) =>
+                          prev.includes(val) ? prev.filter((tagID) => tagID !== val) : [...prev, val]
                         );
                       }}
                     >
@@ -126,23 +127,24 @@ export const TagSelect = observer(
                     </CommandItem>
                   ))}
 
-                {query.length > 1 && !tagList.some((t) => t.fullPath.toLowerCase() === query.trim().toLowerCase()) && (
-                  <CommandItem
-                    forceMount={true}
-                    key="new_item"
-                    value={query}
-                    onSelect={async () => {
-                      const newTagID = await store.createTag(query);
-                      if (!newTagID) {
-                        return;
-                      }
-                      setNewSelectedTagsAll([...newSelectedTagsAll, newTagID.toString()]);
-                      setQuery('');
-                    }}
-                  >
-                    + Create new tag: "{query.trim()}"
-                  </CommandItem>
-                )}
+                {query.length > 1 &&
+                  !sortedTags.some((t) => t.fullPath.toLowerCase() === query.trim().toLowerCase()) && (
+                    <CommandItem
+                      forceMount={true}
+                      key="new_item"
+                      value={query}
+                      onSelect={async () => {
+                        const newTagID = await store.createTag(query);
+                        if (newTagID === null) {
+                          return;
+                        }
+                        setNewSelectedTagsAll((prev) => [...prev, Number(newTagID)]);
+                        setQuery('');
+                      }}
+                    >
+                      + Create new tag: "{query.trim()}"
+                    </CommandItem>
+                  )}
               </CommandGroup>
               <CommandGroup></CommandGroup>
             </CommandList>

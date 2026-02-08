@@ -4,18 +4,7 @@ import { observer } from 'mobx-react-lite';
 import { StoreContext } from '@/store/storeContext.ts';
 import { colorMap } from '@/lib/utils.ts';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip.tsx';
-
-type TagType = {
-  fullPath: string;
-  title: string;
-  color: string;
-};
-
-interface MainStore {
-  tags: Record<number, TagType>;
-  setCurrentTagId: (id: number) => void;
-  selectedTagId: number;
-}
+import { useItemListState } from '@/hooks/useItemListState.ts';
 
 export const getColorClass = (color: string | undefined) => {
   return colorMap[color as keyof typeof colorMap] || colorMap.gray;
@@ -26,7 +15,7 @@ const formatTagPathForDisplay = (path) => {
 };
 
 export const TagBadgeMini: React.FC<{ tagID: number }> = observer(({ tagID }) => {
-  const store = React.useContext(StoreContext) as unknown as MainStore;
+  const store = React.useContext(StoreContext);
   const tag = store.tags[tagID];
   if (!tag) {
     return null;
@@ -43,18 +32,19 @@ export const TagBadgeMini: React.FC<{ tagID: number }> = observer(({ tagID }) =>
 });
 
 export const TagBadge: React.FC<{ tagID: number }> = observer(({ tagID }) => {
-  const store = React.useContext(StoreContext) as unknown as MainStore;
-  const tag = store.tags[tagID];
+  const store = React.useContext(StoreContext);
+  const tag = store.tags[tagID] ?? null;
   if (!tag) {
     return null;
   }
+  const { setTagFilter } = useItemListState();
 
   const fullPath = formatTagPathForDisplay(tag.fullPath);
   const tagTitle = tag.title;
-  const isTagSelected = store.selectedTagId == tagID;
+  const isTagSelected = store.tagFilter === tagID;
 
   const setTag = () => {
-    store.setCurrentTagId(tagID);
+    setTagFilter(tagID);
   };
 
   const colorClass =

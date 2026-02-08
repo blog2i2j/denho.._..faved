@@ -61,6 +61,8 @@ COPY init-demo-db.php .
 COPY sql-dumps sql-dumps
 
 RUN mkdir /var/www/html/storage && \
-    chown www-data:www-data /var/www/html/storage
+    chown www-data:www-data /var/www/html/storage && \
+    mkdir /var/www/html/storage/img && \
+    chown www-data:www-data /var/www/html/storage/img
 
 RUN find . \( -name ".DS_Store" -o -name ".gitignore" \) -type f -delete

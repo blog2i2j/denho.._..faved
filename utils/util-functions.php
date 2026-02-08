@@ -2,7 +2,9 @@
 
 namespace Utils;
 
+use Config;
 use Exception;
+use Framework\Exceptions\ValidationException;
 use Framework\ServiceContainer;
 use GuzzleHttp\Client;
 use GuzzleHttp\Pool;
@@ -68,29 +70,6 @@ function createTagsFromSegments(array $tag_segments, $tag_description = ''): int
 	}
 
 	return (int)$parent_tag_id;
-}
-
-/**
- * TODO: Add URL match checks on item create
- */
-function findURLMatches($checked_url, $items, &$host_matches)
-{
-	$domain = parse_url($checked_url)['host'];
-	if (preg_match('/(?P<domain>[a-z0-9][a-z0-9\-]{1,63}\.[a-z\.]{2,6})$/i', $domain, $matches)) {
-		$domain = $matches['domain'];
-	}
-
-
-	$url_matches = [];
-	$host_matches = [];
-	foreach ($items as $item) {
-		if ($item['url'] === $checked_url) {
-			$url_matches[] = $item;
-		} elseif (str_contains($item['url'], $domain)) {
-			$host_matches[] = $item;
-		}
-	}
-	return $url_matches;
 }
 
 /*
@@ -247,6 +226,14 @@ function buildPublicUserObject(array $user): array
 	];
 }
 
+function getImageLocalPath($image_url, $item_id): string
+{
+	$extension = pathinfo(parse_url($image_url, PHP_URL_PATH), PATHINFO_EXTENSION);
+	$extension = strtolower($extension);
+	$image_name = md5($image_url) . ($extension ? '.' . $extension : '');
+	return sprintf('%s/%s/%s', Config::getImageStoragePath(), $item_id, $image_name);
+}
+
 function getInstalledAppInfo(): ?array
 {
 	$info_file_path = ROOT_DIR . '/app-info.json';
@@ -359,6 +346,81 @@ function fetchMultiplePageHTML(array $urls): array
 	$promise->wait();
 
 	return [$pages, $failed_reasons];
+}
+
+function getLocalFileContents($path)
+{
+	if (!file_exists($path)) {
+		return null;
+	}
+	$contents = file_get_contents($path);
+	if ($contents === false) {
+		throw new \RuntimeException('Failed to read file');
+	}
+	return $contents;
+}
+
+function getRemoteImageContents($url)
+{
+	$client = new Client();
+	$response = $client->get($url, [
+		'stream' => true,
+		'headers' => [
+			'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+		],
+		'timeout' => 5,
+	]);
+
+	$content_type = $response->getHeaderLine('content-type');
+	$allowed_types = [
+		'image/jpeg',
+		'image/jpg',
+		'image/png',
+		'image/gif',
+		'image/webp',
+		'image/svg+xml',
+		'image/bmp',
+		'image/tiff',
+	];
+	if (!in_array($content_type, $allowed_types)) {
+		throw new ValidationException('Unsupported image type: ' . $content_type);
+	}
+
+	$body = $response->getBody();
+	$contents = $body->getContents();
+
+	return $contents;
+}
+
+function saveImageToLocalPath($local_path, $image_contents): void
+{
+	$directory_path = dirname($local_path);
+	if (!is_dir($directory_path)) {
+		makeDirectory($directory_path);
+	} else {
+		clearDirectory($directory_path);
+	}
+	$result = file_put_contents($local_path, $image_contents);
+	if ($result === false) {
+		throw new \RuntimeException('Failed to write file');
+	}
+}
+
+function makeDirectory($directory_path)
+{
+	if (!mkdir($directory_path, 0755, true) && !is_dir($directory_path)) {
+		throw new \RuntimeException(sprintf('Directory "%s" was not created', $directory_path));
+	}
+}
+
+function clearDirectory($directory_path)
+{
+	$files = glob($directory_path . '/*');
+	foreach ($files as $file) {
+		if (is_file($file)) {
+			unlink($file);
+		}
+	}
 }
 
 function createDemoContent($repository)

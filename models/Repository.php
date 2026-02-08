@@ -31,8 +31,11 @@ class Repository
 		$items = [];
 		$stmt = $this->pdo->query('SELECT * FROM items ORDER BY id DESC');
 		while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-			$items[(int)$row['id']] = array_merge($row, [
-				'tags' => $items_tags[(int)$row['id']] ?? []
+			$item_id = (int)$row['id'];
+			$items[$item_id] = array_merge($row, [
+				'url' => urldecode($row['url']),
+				'image' => urldecode($row['image']),
+				'tags' => $items_tags[$item_id] ?? []
 			]);
 		}
 		return $items;
@@ -62,7 +65,7 @@ class Repository
 
 		$items = [];
 		while ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
-			$items[(int)$row['id']] = $row['url'];
+			$items[(int)$row['id']] = urldecode($row['url']);
 		}
 		return $items;
 	}
@@ -204,13 +207,14 @@ class Repository
 		return $this->pdo->lastInsertId();
 	}
 
-	public function updateItem($title, $description, $url, $comments, $image, $item_id)
+	public function updateItem($title, $description, $url, $comments, $image, $item_id): bool
 	{
 		$stmt = $this->pdo->prepare(
-			'UPDATE items SET title = :title, description = :description, url = :url, comments = :comments, image = :image, updated_at = :updated_at
-    WHERE id = :id'
+			'UPDATE items 
+			SET title = :title, description = :description, url = :url, comments = :comments, image = :image, updated_at = :updated_at
+    		WHERE id = :id'
 		);
-		return $stmt->execute([
+		$result = $stmt->execute([
 			':title' => $title,
 			':description' => $description,
 			':url' => $url,
@@ -219,6 +223,7 @@ class Repository
 			':updated_at' => date('Y-m-d H:i:s'),
 			':id' => $item_id,
 		]);
+		return $result && !!$stmt->rowCount();
 	}
 
 	public function updateItemsMetadata($title, $description, $image, $item_ids)

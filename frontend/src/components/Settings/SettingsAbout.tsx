@@ -58,7 +58,8 @@ export const SettingsAbout = observer(() => {
 
   useEffect(() => {
     store.getAppInfo();
-  }, [store]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="flex flex-col gap-6">

@@ -4,6 +4,9 @@ export const API_ENDPOINTS = {
   items: {
     list: `${API_BASE}/items`,
     createItem: `${API_BASE}/items`,
+    deleteItems: `${API_BASE}/items/delete`,
+    refetchItemsMetadata: `${API_BASE}/items/fetch-metadata`,
+    updateItemsTags: `${API_BASE}/items/tags`,
     updateItem: (id: any) => `${API_BASE}/items?item-id=${id}`,
   },
   settings: {
@@ -31,9 +34,6 @@ export const API_ENDPOINTS = {
   importBookmarks: {
     pocket: `${API_BASE}/import/pocket`,
     browser: `${API_BASE}/import/bookmarks`,
-  },
-  urlMetdata: {
-    fetch: (url: string) => `${API_BASE}/url-metadata?url=${url}`,
   },
   appInfo: `${API_BASE}/app-info`,
 };

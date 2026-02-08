@@ -3,55 +3,72 @@
 namespace Controllers;
 
 use Framework\ControllerInterface;
+use Framework\Exceptions\DataWriteException;
 use Framework\Exceptions\ValidationException;
 use Framework\Responses\ResponseInterface;
 use Framework\ServiceContainer;
 use Models\Repository;
-use function Framework\data;
+use Respect\Validation\Validator;
+use function Framework\success;
+use function Utils\clearDirectory;
+use function Utils\getImageLocalPath;
 
 class ItemsUpdateController implements ControllerInterface
 {
-	public function __invoke(array $input) : ResponseInterface
+	public function validateInput(): Validator
 	{
-		if (empty($_GET['item-id'])) {
-			return data([
-				'success' => false,
-				'message' => 'Item ID is required',
-			], 400);
-		}
+		return Validator::key('item-id', Validator::stringType()->notEmpty())
+			->key('title', Validator::stringType()->notEmpty())
+			->key('url', Validator::url()->setName('URL'))
+			->key('description', Validator::stringType()->setName('Description'))
+			->key('comments', Validator::stringType()->setName('Notes'))
+			->key('image', Validator::optional(Validator::url())->setName('Image URL'))
+			->key('tags', Validator::arrayType()->setName('Tags'))
+			->key('force-image-refetch', Validator::boolType(), false);
+	}
 
-		$item_id = $_GET['item-id'];
+	public function __invoke(array $input): ResponseInterface
+	{
+		$repository = ServiceContainer::get(Repository::class);// Handle tags
 
-		$repository = ServiceContainer::get(Repository::class);
-
-		if(!isset($input['tags']) || !is_array($input['tags'])) {
-			return throw new ValidationException('Tags must be an array');
-		}
-
+		// Handle tags
 		$new_tag_ids = array_map('intval', $input['tags']);
-
 		$tags = $repository->getTags();
 		$exising_tag_ids = array_keys($tags);
-		if ( array_diff($new_tag_ids, $exising_tag_ids) ) {;
+		if (array_diff($new_tag_ids, $exising_tag_ids)) {
 			return throw new ValidationException('Non-existing tags provided');
 		}
 
+		// Save item in DB
+		$item_id = $_GET['item-id'];
 		$title = $input['title'];
 		$description = $input['description'];
 		$url = $input['url'];
 		$comments = $input['comments'];
 		$image = $input['image'];
 
-		$repository->updateItem($title, $description, $url, $comments, $image, $item_id);
+		$result = $repository->updateItem($title, $description, $url, $comments, $image, $item_id);
+		if (!$result) {
+			throw new DataWriteException('Item update failed');
+		}
 
-		$repository->setItemTags($new_tag_ids, $item_id);
+		$result = $repository->setItemTags($new_tag_ids, $item_id);
 
-		return data([
-			'success' => true,
-			'message' => 'Item updated successfully',
-			'data' => [
-				'item_id' => $item_id,
-			]
+		if (!$result) {
+			throw new DataWriteException('Item tags update failed');
+		}
+
+		// Clear local image if needed
+		if (empty($image) || !empty($input['force-image-refetch'])) {
+			$image_local_path = getImageLocalPath($image, $item_id);
+			$directory_path = dirname($image_local_path);
+			if (is_dir($directory_path)) {
+				clearDirectory($directory_path);
+			}
+		}
+
+		return success('Item updated successfully', [
+			'item_id' => $item_id,
 		]);
 	}
 }
