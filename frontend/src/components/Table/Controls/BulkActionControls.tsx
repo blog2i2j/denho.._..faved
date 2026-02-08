@@ -94,7 +94,7 @@ export const BulkActionControls = ({ table }) => {
         variant="outline"
         onClick={refetchSelected}
         disabled={fetchInProgress}
-        className="bg-primary-foreground rounded-full"
+        className="bg-primary-foreground rounded-full disabled:opacity-100"
       >
         {fetchInProgress ? <RefreshCw className="animate-spin" /> : <RefreshCw />}
         <span className="hidden @md/main:block">Refetch</span>

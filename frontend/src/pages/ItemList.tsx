@@ -201,12 +201,16 @@ const Table: React.FC = observer(() => {
   const sortByParam = useMemo(() => searchParams.get('sort') ?? 'created_at', [searchParams]);
   const isSortOrderDescParam = useMemo(() => searchParams.get('order') !== 'asc', [searchParams]);
   const searchKeywordParam = useMemo(() => searchParams.get('search') ?? '', [searchParams]);
-  const tagFilterParam: number | 'none' | null = useMemo(() => {
+  const tagFilterParam = useMemo<TagFilterType>(() => {
     const value = searchParams.get('tag');
-    if (value === 'none' || value === null) {
+    if (value === 'none') {
       return value;
     }
-    return Number(value);
+    if (value === null) {
+      return null;
+    }
+    const numValue = Number(value);
+    return isNaN(numValue) ? null : numValue;
   }, [searchParams]);
 
   const [globalFilter, setGlobalFilter] = React.useState<string>(searchKeywordParam);
@@ -266,6 +270,7 @@ const Table: React.FC = observer(() => {
       return;
     }
     setGlobalFilter(searchKeywordParam);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchKeywordParam]);
 
   // Update URL from state change with delay
@@ -283,6 +288,7 @@ const Table: React.FC = observer(() => {
     }, 300);
 
     return () => clearTimeout(timeoutId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [globalFilter]);
   // ^ Search
 
@@ -307,6 +313,7 @@ const Table: React.FC = observer(() => {
       pageIndex: pageIndexParam,
       pageSize: pageSizeParam,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageIndexParam, pageSizeParam]);
   // ^ Pagination
 
@@ -318,6 +325,7 @@ const Table: React.FC = observer(() => {
     }
 
     updateSorting(sortByParam, isSortOrderDescParam, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortByParam, isSortOrderDescParam]);
   // ^ Sorting
 
@@ -331,6 +339,7 @@ const Table: React.FC = observer(() => {
     }
 
     setTagFilter(tagFilterParam, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tagFilterParam]);
   // ^ Tag
   /**
