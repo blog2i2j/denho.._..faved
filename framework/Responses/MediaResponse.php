@@ -26,6 +26,9 @@ class MediaResponse implements ResponseInterface
 		} else {
 			header("Cache-Control: no-cache, no-store, must-revalidate");
 		}
+		// Remove headers that might interfere with caching set with Cache-Control
+		header_remove('Pragma');
+		header_remove('Expires');
 
 		echo $contents;
 	}
