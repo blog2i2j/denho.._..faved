@@ -10,8 +10,7 @@ use Framework\ServiceContainer;
 use Models\Repository;
 use Respect\Validation\Validator;
 use function Framework\success;
-use function Utils\clearDirectory;
-use function Utils\getImageLocalPath;
+use function Utils\clearItemImageDirectory;
 
 class ItemsUpdateController implements ControllerInterface
 {
@@ -60,11 +59,7 @@ class ItemsUpdateController implements ControllerInterface
 
 		// Clear local image if needed
 		if (empty($image) || !empty($input['force-image-refetch'])) {
-			$image_local_path = getImageLocalPath($image, $item_id);
-			$directory_path = dirname($image_local_path);
-			if (is_dir($directory_path)) {
-				clearDirectory($directory_path);
-			}
+			clearItemImageDirectory($item_id);
 		}
 
 		return success('Item updated successfully', [

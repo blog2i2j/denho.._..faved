@@ -340,7 +340,7 @@ const EditItemForm = observer(({ isCloseWindowOnSubmit }: EditItemFormProps) => 
                 ) : (
                   <PreviewImage
                     imageUrl={imageUrl}
-                    itemId={!forceImageRefetch && store.type === ActionType.EDIT && store.idItem ? store.idItem : null}
+                    item={!forceImageRefetch && store.type === ActionType.EDIT && currentItem ? currentItem : null}
                     className="max-h-[100px] w-auto rounded-sm object-contain shadow-sm"
                   />
                 )}

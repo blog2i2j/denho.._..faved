@@ -11,7 +11,7 @@ export const TableLayout = ({ table, rows }: { table: any; rows: any[] }) => {
           <TableRow key={headerGroup.id}>
             {headerGroup.headers.map((header) => {
               return (
-                <TableHead key={header.id}>
+                <TableHead key={header.id} className={header.column.columnDef.meta?.class || ''}>
                   {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
                 </TableHead>
               );

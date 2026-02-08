@@ -6,7 +6,7 @@ use Framework\ControllerInterface;
 use Framework\Responses\MediaResponse;
 use Framework\Responses\ResponseInterface;
 use Respect\Validation\Validator;
-use function Utils\getImageLocalPath;
+use function Utils\getItemImageLocalPath;
 use function Utils\getLocalFileContents;
 use function Utils\getRemoteImageContents;
 use function Utils\saveImageToLocalPath;
@@ -26,7 +26,7 @@ class ImageFetchController implements ControllerInterface
 
 		// Get from local cache if item id is provided
 		if ($item_id) {
-			$image_local_path = getImageLocalPath($image_url, $item_id);
+			$image_local_path = getItemImageLocalPath($image_url, $item_id);
 			$contents = getLocalFileContents($image_local_path);
 			if ($contents) {
 				return new MediaResponse($contents, 60 * 24 * 7 /*7 days*/);
@@ -42,7 +42,7 @@ class ImageFetchController implements ControllerInterface
 
 		// Save contents to file if item id is provided
 		if ($item_id) {
-			$image_local_path = getImageLocalPath($image_url, $item_id);
+			$image_local_path = getItemImageLocalPath($image_url, $item_id);
 			saveImageToLocalPath($image_local_path, $contents);
 			return new MediaResponse($contents, 60 * 24 * 7 /*7 days*/);
 		}

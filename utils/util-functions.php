@@ -226,12 +226,17 @@ function buildPublicUserObject(array $user): array
 	];
 }
 
-function getImageLocalPath($image_url, $item_id): string
+function getItemImageLocalPath($image_url, $item_id): string
 {
 	$extension = pathinfo(parse_url($image_url, PHP_URL_PATH), PATHINFO_EXTENSION);
 	$extension = strtolower($extension);
 	$image_name = md5($image_url) . ($extension ? '.' . $extension : '');
-	return sprintf('%s/%s/%s', Config::getImageStoragePath(), $item_id, $image_name);
+	return sprintf('%s/%s', getItemImageLocalDir($item_id), $image_name);
+}
+
+function getItemImageLocalDir($item_id): string
+{
+	return sprintf('%s/%s', Config::getImageStoragePath(), $item_id);
 }
 
 function getInstalledAppInfo(): ?array
@@ -411,6 +416,15 @@ function makeDirectory($directory_path)
 	if (!mkdir($directory_path, 0755, true) && !is_dir($directory_path)) {
 		throw new \RuntimeException(sprintf('Directory "%s" was not created', $directory_path));
 	}
+}
+
+function clearItemImageDirectory($item_id)
+{
+	$directory_path = getItemImageLocalDir($item_id);
+	if (!is_dir($directory_path)) {
+		return;
+	}
+	clearDirectory($directory_path);
 }
 
 function clearDirectory($directory_path)

@@ -5,23 +5,26 @@ import { IconX } from '@tabler/icons-react';
 import { ImageOff } from 'lucide-react';
 import { cn } from '@/lib/utils.ts';
 import { Spinner } from '@/components/ui/spinner.tsx';
+import { ItemType } from '@/lib/types.ts';
 
 export const PreviewImage = ({
   imageUrl,
-  itemId,
+  item,
   className,
 }: {
   imageUrl: string;
-  itemId: number | null;
+  item: ItemType | null;
   className?: string;
 }) => {
   const [isLoaded, setIsLoaded] = React.useState<boolean | null>(null); // null for loading in progress, true for success, false for failure
   const urlObject = new URL('/content/fetch-image', window.location.origin);
   urlObject.searchParams.set('image-url', encodeURI(imageUrl));
 
-  if (itemId) {
-    urlObject.searchParams.set('item-id', String(itemId));
+  if (item) {
+    urlObject.searchParams.set('item-id', item.id);
+    urlObject.searchParams.set('cache-key', item.updated_at);
   }
+
   const imageLocalURL = urlObject.toString();
 
   useEffect(() => {

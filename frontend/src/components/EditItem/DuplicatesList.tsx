@@ -94,7 +94,7 @@ export const DuplicatesList = ({ url }: { url: string }) => {
             ) : (
               <PreviewImage
                 imageUrl={item.image}
-                itemId={item.id}
+                item={item}
                 className="max-h-[64px] w-auto rounded-sm object-contain shadow-sm"
               />
             )}

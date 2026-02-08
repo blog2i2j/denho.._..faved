@@ -10,6 +10,7 @@ use Framework\ServiceContainer;
 use Models\Repository;
 use Utils\DOMParser;
 use function Framework\success;
+use function Utils\clearItemImageDirectory;
 use function Utils\fetchMultiplePageHTML;
 use function Utils\resolveUrl;
 
@@ -58,6 +59,12 @@ class ItemsFetchMetadataController implements ControllerInterface
 					$failed_reasons[$url] = 'Failed to update item metadata in database';
 					return;
 				}
+
+				// Clear local images regardless of whether the image URL is present or not,
+				// to ensure that the next fetch will attempt to get the latest image version even if URL hasn't changed,
+				// or to clear the local image if the image URL has been removed from the page.
+				array_walk($item_ids, fn($item_id) => clearItemImageDirectory($item_id));
+
 				$updated_items_count += count($item_ids);
 			});
 
