@@ -16,7 +16,7 @@ class Config
 
 	public static function getImageStoragePath(): string
 	{
-		return sprintf('%s/%s', self::STORAGE_PATH, self::IMAGE_STORAGE_DIR_NAME);
+		return sprintf('%s/%s/%s',  self::STORAGE_PATH, $_SERVER['DB_NAME'], self::IMAGE_STORAGE_DIR_NAME);
 	}
 
 	public static function getPasswordAlgo(): string
