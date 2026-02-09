@@ -1,9 +1,9 @@
-import { useSearchParams } from 'react-router-dom';
+import { NavigateOptions, useSearchParams } from 'react-router-dom';
 
 export const useUrlState = () => {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const setUrlState = (updates: Record<string, string | number | null>) => {
+  const setUrlState = (updates: Record<string, string | number | null>, options?: NavigateOptions) => {
     setSearchParams(
       (prev) => {
         Object.entries(updates).forEach(([key, value]) => {
@@ -16,7 +16,7 @@ export const useUrlState = () => {
 
         return prev;
       },
-      { replace: false }
+      options ?? { replace: false }
     );
   };
 

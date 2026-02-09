@@ -8,11 +8,12 @@ import { SetupAuth } from './pages/SetupAuth.tsx';
 import { SetupImport } from './pages/SetupImport.tsx';
 import { SetupBookmarklet } from './pages/SetupBookmarklet.tsx';
 import { Toaster } from './components/ui/sonner';
-import EditItemForm from './components/EditItem/EditItemForm';
 import { NotFound } from './layouts/NotFound.tsx';
 import { RouterProvider } from 'react-router';
 import { Spinner } from '@/components/ui/spinner.tsx';
 import { ItemList } from '@/pages/ItemList.tsx';
+import { CreateItem } from '@/pages/CreateItem.tsx';
+import { EditItem } from '@/pages/EditItem.tsx';
 
 const InitMiddleware = observer(() => {
   const store = useContext(StoreContext);
@@ -75,7 +76,8 @@ const router = createBrowserRouter([
               { path: '/setup/auth', element: <SetupAuth /> },
               { path: '/setup/import', element: <SetupImport /> },
               { path: '/setup/bookmarklet', element: <SetupBookmarklet /> },
-              { path: '/create-item', element: <EditItemForm isCloseWindowOnSubmit={true} /> },
+              { path: '/create-item', element: <CreateItem /> },
+              { path: '/edit-item/:itemID', element: <EditItem /> },
             ],
           },
         ],

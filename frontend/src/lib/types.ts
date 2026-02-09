@@ -62,8 +62,3 @@ export type TagsObjectType = Record<number, TagType>;
 export type LayoutType = 'table' | 'cards' | 'list';
 
 export type TagFilterType = number | 'none' | null;
-
-export enum ActionType {
-  CREATE = 'CREATE',
-  EDIT = 'EDIT',
-}

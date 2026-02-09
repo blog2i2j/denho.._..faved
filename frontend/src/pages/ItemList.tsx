@@ -20,7 +20,7 @@ import { Sorter } from '../components/Table/Controls/Sorter.tsx';
 import { Pagination } from '../components/Table/Controls/Pagination.tsx';
 import { CardsLayout } from '../components/Table/Layouts/CardsLayout.tsx';
 import { PreviewImage } from '@/components/Table/Fields/PreviewImage.tsx';
-import { ActionType, ItemType, LayoutType, TagFilterType } from '@/lib/types.ts';
+import { ItemType, LayoutType, TagFilterType } from '@/lib/types.ts';
 import { ItemsActions } from '@/components/Table/Fields/ItemActions.tsx';
 import Loading from '@/layouts/Loading.tsx';
 import {
@@ -197,7 +197,7 @@ const Table: React.FC = observer(() => {
 
   const { searchParams, setUrlState } = useUrlState();
   const pageIndexParam = useMemo(() => Number(searchParams.get('page') ?? 1) - 1, [searchParams]);
-  const pageSizeParam = useMemo(() => Number(searchParams.get('per_page') ?? 25), [searchParams]);
+  const pageSizeParam = useMemo(() => Number(searchParams.get('per-page') ?? 25), [searchParams]);
   const sortByParam = useMemo(() => searchParams.get('sort') ?? 'created_at', [searchParams]);
   const isSortOrderDescParam = useMemo(() => searchParams.get('order') !== 'asc', [searchParams]);
   const searchKeywordParam = useMemo(() => searchParams.get('search') ?? '', [searchParams]);
@@ -299,7 +299,7 @@ const Table: React.FC = observer(() => {
     setPagination(newPagination);
     setUrlState({
       page: newPagination.pageIndex + 1,
-      per_page: newPagination.pageSize,
+      'per-page': newPagination.pageSize,
     });
   };
 
@@ -473,8 +473,7 @@ const Table: React.FC = observer(() => {
         <Button
           variant="default"
           onClick={() => {
-            store.setIsShowEditModal(true);
-            store.setType(ActionType.CREATE);
+            store.openItemCreateModal();
           }}
         >
           <PlusIcon />

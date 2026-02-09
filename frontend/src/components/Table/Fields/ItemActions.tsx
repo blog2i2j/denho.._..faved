@@ -9,16 +9,13 @@ import {
 } from '@/components/ui/dropdown-menu.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { EllipsisVertical, Maximize } from 'lucide-react';
-import { ActionType } from '@/lib/types.ts';
 import { DeleteDialog } from '@/components/Table/Controls/DeleteDialog.tsx';
 
 export const ItemsActions = ({ row }) => {
-  const itemId = row.original.id;
+  const itemID = row.original.id;
   const store = React.useContext(StoreContext);
   const handleEdit = () => {
-    store.setType(ActionType.EDIT);
-    store.setIsShowEditModal(true);
-    store.setIdItem(itemId);
+    store.openItemEditModal(itemID);
   };
 
   const handleMakeCopy = async () => {
@@ -30,7 +27,7 @@ export const ItemsActions = ({ row }) => {
   };
 
   const handleRefetch = async () => {
-    const result = await store.refetchItemsMetadata([row.original.id]);
+    const result = await store.refetchItemsMetadata([itemID]);
     if (!result) {
       return;
     }
@@ -38,7 +35,7 @@ export const ItemsActions = ({ row }) => {
   };
 
   const handleDelete = async () => {
-    const result = await store.deleteItems([itemId]);
+    const result = await store.deleteItems([itemID]);
     if (!result) {
       return;
     }

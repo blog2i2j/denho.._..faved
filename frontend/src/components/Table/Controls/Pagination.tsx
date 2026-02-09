@@ -16,10 +16,12 @@ export function Pagination<TData>({ table }: DataTablePaginationProps<TData>) {
     });
   }, [pageIndex]);
 
+  const rowCount = table.getFilteredRowModel().rows.length;
+
   return (
     <div className="flex flex-col gap-5 p-4">
       <div className="text-muted-foreground flex-1/5 text-center text-sm">
-        {table.getFilteredRowModel().rows.length} item{table.getFilteredRowModel().rows.length !== 1 ? 's' : ''} total
+        {rowCount} item{rowCount !== 1 ? 's' : ''} total
       </div>
       <div className="flex flex-col items-center justify-between gap-4 @lg/main:flex-row">
         <div className="flex items-center gap-2">

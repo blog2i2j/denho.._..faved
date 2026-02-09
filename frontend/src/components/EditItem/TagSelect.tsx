@@ -55,7 +55,9 @@ const TagEdit = observer(
             className={['flex h-auto w-full justify-start text-left whitespace-normal'].join(' ')}
           >
             <div className="flex flex-wrap gap-1">
-              {selectedTags.length > 0 ? selectedTags.map((tagId) => <TagBadgeMini tagID={tagId} />) : 'Select tags...'}
+              {selectedTags.length > 0
+                ? selectedTags.map((tagId) => <TagBadgeMini key={tagId} tagID={tagId} />)
+                : 'Select tags...'}
             </div>
             <ChevronsUpDown className="ml-auto opacity-50" />
           </Button>

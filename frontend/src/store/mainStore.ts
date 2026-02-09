@@ -2,7 +2,6 @@ import { makeAutoObservable } from 'mobx';
 import { toast } from 'sonner';
 import { API_ENDPOINTS } from './api';
 import {
-  ActionType,
   CreateUserType,
   ItemType,
   LoginType,
@@ -18,16 +17,15 @@ import { getCookie } from '@/lib/utils.ts';
 class mainStore {
   items: ItemType[] = [];
   tags: TagsObjectType = [];
-  type: ActionType = '' as ActionType;
   user: UserType | null = null;
-  idItem: number | undefined = undefined;
   isAuthRequired = null;
   isSetupRequired = null;
   error: string | null = null;
   isOpenSettingsModal: boolean = false;
   preSelectedItemSettingsModal: string | null = null;
   tagFilter: TagFilterType = null; // Default to null for no tag selected. 'none' for without any tags
-  isShowEditModal: boolean = false;
+  isItemModalOpen: boolean = false;
+  modalOpenItemID: number | null = null;
   appInfo: {
     installed_version: string | null;
     latest_version: string | null;
@@ -103,9 +101,6 @@ class mainStore {
 
   unsetUser = () => {
     this.user = null;
-  };
-  setIsShowEditModal = (val: boolean) => {
-    this.isShowEditModal = val;
   };
   setTags = (tags: TagsObjectType) => {
     const renderTagSegment = (tag: TagType) => {
@@ -195,11 +190,20 @@ class mainStore {
   setItems = (val: ItemType[]) => {
     this.items = val;
   };
-  setType = (val: ActionType) => {
-    this.type = val;
+  openItemEditModal = (itemID: number) => {
+    this.isItemModalOpen = true;
+    this.modalOpenItemID = itemID;
   };
-  setIdItem = (val: number) => {
-    this.idItem = val;
+  openItemCreateModal = () => {
+    this.isItemModalOpen = true;
+    this.modalOpenItemID = null;
+  };
+  closeModal = () => {
+    this.isItemModalOpen = false;
+    this.modalOpenItemID = null;
+  };
+  setIsItemModalOpen = (val: boolean) => {
+    this.isItemModalOpen = val;
   };
   setIsOpenSettingsModal = (val: boolean) => {
     this.isOpenSettingsModal = val;

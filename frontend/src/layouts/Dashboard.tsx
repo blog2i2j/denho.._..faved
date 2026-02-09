@@ -23,7 +23,7 @@ export const Dashboard = observer(({ children }: { children: React.ReactNode }) 
         <AppSidebar />
         <main className="bg-background @container/main relative flex w-full flex-1 flex-col">{children}</main>
       </SidebarProvider>
-      {store.isShowEditModal && <EditItemDialog />}
+      {store.isItemModalOpen && <EditItemDialog />}
       {store.isOpenSettingsModal && <SettingsDialog />}
       <OnboardingBanner />
     </>
