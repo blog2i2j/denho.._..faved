@@ -19,8 +19,15 @@ const InitMiddleware = observer(() => {
   const store = useContext(StoreContext);
 
   useEffect(() => {
-    // This call sets up store.isAuthRequired and store.isSetupRequired, which are used further
-    store.getUser(true);
+    // If request was successful even with no user data, it means that setup and auth are not required, so we can set them to false
+    const loadData = async () => {
+      const response = await store.getUser(true);
+      if (response !== null) {
+        store.setIsSetupRequired(false);
+        store.setIsAuthRequired(false);
+      }
+    };
+    loadData();
   }, [store]);
 
   if (store.isSetupRequired === null || store.isAuthRequired === null) {

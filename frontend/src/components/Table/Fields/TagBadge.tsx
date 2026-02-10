@@ -34,10 +34,11 @@ export const TagBadgeMini: React.FC<{ tagID: number }> = observer(({ tagID }) =>
 export const TagBadge: React.FC<{ tagID: number }> = observer(({ tagID }) => {
   const store = React.useContext(StoreContext);
   const tag = store.tags[tagID] ?? null;
+  const { setTagFilter } = useItemListState();
+
   if (!tag) {
     return null;
   }
-  const { setTagFilter } = useItemListState();
 
   const fullPath = formatTagPathForDisplay(tag.fullPath);
   const tagTitle = tag.title;

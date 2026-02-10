@@ -61,12 +61,16 @@ class mainStore {
 
     return fetch(endpoint, options)
       .then((response) => {
-        this.setIsAuthRequired(response.status === 401);
-
-        this.setIsSetupRequired(response.status === 424);
-
         if (response.ok) {
           return response.json();
+        }
+
+        if (response.status === 424) {
+          this.setIsSetupRequired(true);
+          this.setIsAuthRequired(false);
+        } else if (response.status === 401) {
+          this.setIsSetupRequired(false);
+          this.setIsAuthRequired(true);
         }
 
         return response.json().then((data) => {
@@ -288,10 +292,14 @@ class mainStore {
       true,
       noErrorEmit
     );
+    if (response === null) {
+      return null;
+    }
 
     if (!response?.data?.user) {
       return false;
     }
+
     this.setUser(response.data.user);
     return true;
   };
