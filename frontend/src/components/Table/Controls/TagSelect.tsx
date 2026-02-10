@@ -13,8 +13,6 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover.tsx';
 import { observer } from 'mobx-react-lite';
 import { StoreContext } from '@/store/storeContext.ts';
-import { toJS } from 'mobx';
-import { TagsObjectType } from '@/lib/types.ts';
 import { getColorClass } from '@/components/Table/Fields/TagBadge.tsx';
 import { Checkbox } from '@/components/ui/checkbox.tsx';
 import { Button } from '@/components/ui/button.tsx';
@@ -52,7 +50,7 @@ export const TagSelect = observer(
     );
 
     const getSortedTags = (tags, selectedTags) => {
-      const t = Object.values(toJS(tags as TagsObjectType));
+      const t = Object.values(store.tags);
       t.sort((a, b) => {
         return Number(selectedTags.includes(b.id)) - Number(selectedTags.includes(a.id));
       });
@@ -146,7 +144,6 @@ export const TagSelect = observer(
                     </CommandItem>
                   )}
               </CommandGroup>
-              <CommandGroup></CommandGroup>
             </CommandList>
             <div className="bg-background w-full p-1">
               <Button
