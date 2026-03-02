@@ -2,48 +2,63 @@
 
 namespace Utils;
 
+use Framework\ServiceContainer;
+use Models\Item;
+use Models\ItemCreator;
 use Models\Repository;
 use Models\TagCreator;
 
 class BookmarkImporter
 {
-	const IMPORT_FROM_BROWSER_TAG_NAME = 'Imported from browser';
-	const IMPORTED_TAG_DESCRIPTION = 'Tag imported from browser';
+	const IMPORTED_BOOKMARK_DEFAULT_TAG_NAME_FORMAT = 'Imported from %s';
+	const IMPORTED_TAG_DESCRIPTION_FORMAT = 'Tag imported from %s';
 
-	public function __construct(protected Repository $repository, protected TagCreator $tag_creator)
+	private string $imported_bookmark_default_tag_name;
+	private string $imported_tag_description;
+
+	public function __construct(protected Repository $repository, protected TagCreator $tag_creator, string $import_source_name)
 	{
+		$this->imported_bookmark_default_tag_name = sprintf(self::IMPORTED_BOOKMARK_DEFAULT_TAG_NAME_FORMAT, $import_source_name);
+		$this->imported_tag_description = sprintf(self::IMPORTED_TAG_DESCRIPTION_FORMAT, $import_source_name);
 	}
 
 	public function processHTML(string $content, &$skipped_count): int
 	{
 		// Extract folders and bookmarks from the HTML content
-		[$folders, $bookmarks, $skipped_count] = $this->extractData($content);
+		[$folders, $tags, $bookmarks, $skipped_count] = $this->extractData($content);
 
 		// Create tags
-		$folder_tag_map = $this->writeTags($folders);
+		$folder_path_to_tag_id_map = $this->saveFoldersAsTags($folders);
+		$tag_name_to_tag_id_map = $this->saveTags([...$tags, $this->imported_bookmark_default_tag_name]);
 
-		// Create bookmark items
-		$this->writeItems($bookmarks, $folder_tag_map);
-		return count($bookmarks);
+		// Save items to DB
+		$items = $this->saveItems($bookmarks, $folder_path_to_tag_id_map, $tag_name_to_tag_id_map);
+
+		return count($items);
 	}
 
+	/**
+	 * @param string $content HTML content of the bookmarks file
+	 * @return array [array of unique json-encoded folder paths, array of unique tags, array of bookmarks with title/url/folder_path/tags, count of skipped bookmarks]
+	 */
 	private function extractData(string $content): array
 	{
 		$skipped_count = 0;
 
-		$folders = [self::IMPORT_FROM_BROWSER_TAG_NAME => [self::IMPORT_FROM_BROWSER_TAG_NAME]];
+		$all_folders = [];
+		$all_tags = [];
 		$bookmarks = [];
 
-		$dom = new \DOMDocument();
+		$dom = new \DOMDocument('1.0', 'UTF-8');
 		libxml_use_internal_errors(true);
-		$dom->loadHTML($content);
+		$dom->loadHTML('<?xml encoding="UTF-8">' . $content, LIBXML_NOERROR | LIBXML_NOWARNING | LIBXML_NONET | LIBXML_PARSEHUGE);
 		libxml_clear_errors();
-
 		$xpath = new \DOMXPath($dom);
 		$links = $xpath->query('//a[@href]');
 
 		foreach ($links as $link) {
 			$url = $link->getAttribute('href');
+			$tags_attr = $link->getAttribute('tags');
 			$title = trim($link->textContent);
 
 			if (empty($url) || str_starts_with($url, 'javascript:')) {
@@ -51,23 +66,33 @@ class BookmarkImporter
 				continue;
 			}
 
-			$folder_paths = [self::IMPORT_FROM_BROWSER_TAG_NAME];
+			$tags = [];
+
+			if ($tags_attr) {
+				$tags = explode(',', $tags_attr);
+				$tags = array_map('trim', $tags);
+				$tags = array_filter($tags, fn($tag) => $tag !== '');
+
+				$all_tags = array_merge($all_tags, $tags);
+			}
+
+			$folder_path = null;
 
 			$path_segments = $this->extractPath($link);
 			if (!empty($path_segments)) {
-				$full_path = implode('/', $path_segments);
-				$folders[$full_path] = $path_segments;
-				$folder_paths[] = $full_path;
+				$folder_path = json_encode($path_segments);
+				$all_folders[] = $folder_path;
 			}
 
 			$bookmarks[] = [
-				'title' => $title ?: $url,
+				'title' => $title,
 				'url' => $url,
-				'folder_paths' => $folder_paths
+				'folder_path' => $folder_path,
+				'tags' => $tags,
 			];
 		}
 
-		return [$folders, $bookmarks, $skipped_count];
+		return [array_unique($all_folders), array_unique($all_tags), $bookmarks, $skipped_count];
 	}
 
 	/*
@@ -98,36 +123,53 @@ class BookmarkImporter
 		return $folders;
 	}
 
-	protected function writeTags($folders)
+	protected function saveFoldersAsTags($folder_paths)
 	{
-		return array_reduce(
-			array_keys($folders),
-			function ($folder_tag_map, $folder_path) use ($folders) {
-				$folder_tag_map[$folder_path] = createTagsFromSegments($folders[$folder_path], self::IMPORTED_TAG_DESCRIPTION);
-				return $folder_tag_map;
-			},
-			[]
-		);
+		$tag_ids = array_map(function ($path) {
+			return createTagsFromSegments(
+				json_decode($path), $this->imported_tag_description
+			);
+		}, $folder_paths);
+		return array_combine($folder_paths, $tag_ids);
 	}
 
-	protected function writeItems($items, $tag_map)
+	protected function saveTags($tag_names)
 	{
-		array_walk($items, function ($item) use ($tag_map) {
-
-			$item_id = $this->repository->createItem(
-				$item['title'],
-				'',
-				$item['url'],
-				'',
-				'',
-				date('Y-m-d H:i:s'),
+		$tag_ids = array_map(function ($tag_name) {
+			return createTagsFromSegments(
+				[$tag_name], $this->imported_tag_description
 			);
+		}, $tag_names);
+		return array_combine($tag_names, $tag_ids);
+	}
 
-			$tag_ids = array_intersect_key(
-				$tag_map,
-				array_flip($item['folder_paths'])
+	protected function saveItems($bookmarks, $folder_path_to_tag_id_map, $tag_name_to_tag_id_map)
+	{
+		$items = array_map(function ($bookmark) use ($folder_path_to_tag_id_map, $tag_name_to_tag_id_map) {
+
+			$item_tag_ids = [
+				$tag_name_to_tag_id_map[$this->imported_bookmark_default_tag_name],
+			];
+
+			if ($bookmark['folder_path'] && isset($folder_path_to_tag_id_map[$bookmark['folder_path']])) {
+				$item_tag_ids[] = $folder_path_to_tag_id_map[$bookmark['folder_path']];
+			}
+
+			if (!empty($bookmark['tags'])) {
+				$item_tag_ids = array_merge($item_tag_ids, array_intersect_key($tag_name_to_tag_id_map, array_flip($bookmark['tags'])));
+			}
+
+			return new Item(
+				$bookmark['url'],
+				$bookmark['title'] ?: $bookmark['url'],
+				'',
+				'',
+				'',
+				array_unique($item_tag_ids)
 			);
-			$this->repository->attachItemsTags([$item_id], $tag_ids);
-		});
+		}, $bookmarks);
+
+		$item_creator = ServiceContainer::get(ItemCreator::class);
+		return $item_creator->createItems($items);
 	}
 }

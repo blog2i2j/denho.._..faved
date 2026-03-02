@@ -190,23 +190,6 @@ class Repository
 		return $stmt->execute($sql_data);
 	}
 
-	public function createItem($title, $description, $url, $comments, $image, $created_at = null)
-	{
-		$stmt = $this->pdo->prepare(
-			'INSERT INTO items (title, description, url, comments, image, created_at)
-    VALUES (:title, :description, :url, :comments, :image, :created_at)'
-		);
-		$stmt->execute([
-			':title' => $title,
-			':description' => $description,
-			':url' => $url,
-			':comments' => $comments,
-			':image' => $image,
-			':created_at' => $created_at ?? date('Y-m-d H:i:s'),
-		]);
-		return $this->pdo->lastInsertId();
-	}
-
 	public function updateItem($title, $description, $url, $comments, $image, $item_id): bool
 	{
 		$stmt = $this->pdo->prepare(

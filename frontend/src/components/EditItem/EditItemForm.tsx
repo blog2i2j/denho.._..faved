@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useDeferredValue, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -69,6 +69,7 @@ const EditItemForm = observer(
       /* empty */
     }
     const url = form.watch('url') as string;
+    const urlForDuplicatesCheck = useDeferredValue(url);
     const [forceImageRefetch, setForceImageRefetch] = React.useState(false);
     const initialImageUrl = useRef(imageUrl);
 
@@ -279,7 +280,7 @@ const EditItemForm = observer(
               )}
               {item ? 'Edit Bookmark' : 'Create Bookmark'}
             </h2>
-            {!item && <DuplicatesList url={url} />}
+            {!item && <DuplicatesList url={urlForDuplicatesCheck} />}
             <div className="space-y-4 py-4">
               <div className="grid gap-3">
                 <FormField

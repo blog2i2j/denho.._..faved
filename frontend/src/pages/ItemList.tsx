@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { startTransition, useContext, useEffect, useMemo, useState } from 'react';
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -378,6 +378,14 @@ const Table: React.FC = observer(() => {
   const currentRows = table.getPaginationRowModel().rows;
   const sortableColumns = table.getAllColumns().filter((column) => column.getCanSort());
   const visibilityToggleColumns = table.getAllColumns().filter((column) => column.getCanHide());
+
+  // Reset row selection on table state changes
+  useEffect(() => {
+    startTransition(() => {
+      table.resetRowSelection();
+      store.setKeepBulkActionsToolbar(false);
+    });
+  }, [globalFilter, sorting, pagination, store.tagFilter, table, store]);
 
   useEffect(() => {
     if (table.getState().pagination.pageIndex >= table.getPageCount()) {

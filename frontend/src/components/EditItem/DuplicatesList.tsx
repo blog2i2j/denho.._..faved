@@ -1,7 +1,7 @@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle } from '@/components/ui/item';
 import { ChevronRightIcon, ChevronsDownUp, ChevronsUpDown, Image as ImageIcon } from 'lucide-react';
-import React, { useContext, useEffect, useMemo } from 'react';
+import React, { startTransition, useContext, useEffect, useMemo } from 'react';
 import { StoreContext } from '@/store/storeContext.ts';
 import { cn, safeDecodeURI } from '@/lib/utils.ts';
 import { UrlSchema } from '@/lib/types.ts';
@@ -47,6 +47,15 @@ export const DuplicatesList = observer(({ url }: { url: string }) => {
   } catch {
     /* empty */
   }
+
+  const items = useMemo(() => {
+    return store.items.map((item) => ({
+      ...item,
+      normalizedUrl: normalizeUrl(item.url),
+      domain: extractDomain(item.url),
+    }));
+  }, [store.items]);
+
   const exactMatches = useMemo(() => {
     if (!validUrl) {
       return [];
@@ -55,8 +64,8 @@ export const DuplicatesList = observer(({ url }: { url: string }) => {
     if (normalizedUrl === '') {
       return [];
     }
-    return store.items.filter((item) => normalizeUrl(item.url) === normalizedUrl);
-  }, [store.items, validUrl]);
+    return items.filter((item) => item.normalizedUrl === normalizedUrl);
+  }, [items, validUrl]);
 
   const domainMatches = useMemo(() => {
     if (!validUrl) {
@@ -66,20 +75,22 @@ export const DuplicatesList = observer(({ url }: { url: string }) => {
     if (urlDomain === '') {
       return [];
     }
-    return store.items.filter((item) => extractDomain(item.url) === urlDomain && !exactMatches.includes(item));
-  }, [store.items, validUrl, exactMatches]);
+    return items.filter((item) => item.domain === urlDomain && !exactMatches.includes(item));
+  }, [items, validUrl, exactMatches]);
 
   const openItem = (itemID: number) => {
     navigate(`/edit-item/${itemID}?show-back=1`);
   };
 
   const onOpenChange = (isOpen: boolean) => {
-    setUrlState(
-      {
-        'expand-duplicates': isOpen === true ? '1' : null,
-      },
-      { replace: true }
-    );
+    startTransition(() => {
+      setUrlState(
+        {
+          'expand-duplicates': isOpen ? '1' : null,
+        },
+        { replace: true }
+      );
+    });
   };
 
   const exactMatchesCount = exactMatches.length;
@@ -152,8 +163,8 @@ export const DuplicatesList = observer(({ url }: { url: string }) => {
           <CollapsibleContent className="p-0">
             <ScrollArea className={cn('w-full', totalMatchesCount > 3 ? 'h-73' : '')}>
               <div className="flex w-full flex-col gap-2 px-3 pb-3">
-                {exactMatches.map((item) => ItemCard(item, normalizeUrl(item.url)))}
-                {domainMatches.map((item) => ItemCard(item, extractDomain(item.url)))}
+                {exactMatches.map((item) => ItemCard(item, item.normalizedUrl))}
+                {domainMatches.map((item) => ItemCard(item, item.domain))}
               </div>
             </ScrollArea>
           </CollapsibleContent>

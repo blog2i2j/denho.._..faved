@@ -7,6 +7,7 @@ import { DeleteDialog } from '@/components/Table/Controls/DeleteDialog.tsx';
 import { useSidebar } from '@/components/ui/sidebar.tsx';
 import { cn } from '@/lib/utils.ts';
 import { TagSelect } from '@/components/Table/Controls/TagSelect.tsx';
+import { Separator } from '@/components/ui/separator.tsx';
 
 export const BulkActionControls = ({ table }) => {
   const { isMobile, state } = useSidebar();
@@ -14,11 +15,12 @@ export const BulkActionControls = ({ table }) => {
   const store = React.useContext(StoreContext);
   const [deleteInProgress, setDeleteInProgress] = React.useState(false);
   const [fetchInProgress, setFetchInProgress] = React.useState(false);
-  const filteredSelectedRows = table.getFilteredSelectedRowModel().rows;
+  const selectedRows = table.getFilteredSelectedRowModel().rows;
+  const selectedRowsCount = selectedRows.length;
 
   const deleteSelected = async () => {
     setDeleteInProgress(true);
-    const result = await store.deleteItems(filteredSelectedRows.map((row) => row.original.id));
+    const result = await store.deleteItems(selectedRows.map((row) => row.original.id));
     if (!result) {
       return;
     }
@@ -29,7 +31,7 @@ export const BulkActionControls = ({ table }) => {
 
   const refetchSelected = async () => {
     setFetchInProgress(true);
-    const result = await store.refetchItemsMetadata(filteredSelectedRows.map((row) => row.original.id));
+    const result = await store.refetchItemsMetadata(selectedRows.map((row) => row.original.id));
     if (result) {
       store.fetchItems();
     }
@@ -38,7 +40,7 @@ export const BulkActionControls = ({ table }) => {
 
   const updateTagsSelected = async ({ newSelectedTagsAll, newSelectedTagsSome }) => {
     await store.updateItemsTags({
-      itemIds: filteredSelectedRows.map((row) => row.original.id),
+      itemIds: selectedRows.map((row) => row.original.id),
       newSelectedTagsAll,
       newSelectedTagsSome,
     });
@@ -46,71 +48,84 @@ export const BulkActionControls = ({ table }) => {
     return true;
   };
 
-  if (table.getFilteredSelectedRowModel().rows.length === 0) {
+  if (selectedRowsCount === 0 && !store.keepBulkActionsToolbar) {
     return null;
   }
-  const selectedRowsCount = table.getFilteredSelectedRowModel().rows.length;
-  const selectedTags = table
-    .getFilteredSelectedRowModel()
-    .rows.map((row) => row.original.tags)
-    .flat();
+  const selectedTags = selectedRows.map((row) => row.original.tags).flat();
 
   // Count occurrences of each tag
-  const selectedTagsCount = selectedTags.reduce(
+  const selectedRowsCountByTag = selectedTags.reduce(
     (count, tagID) => ((count[tagID] = (count[tagID] || 0) + 1), count),
     {}
   );
-  const selectedTagsAll = Object.keys(selectedTagsCount)
-    .filter((tagID) => selectedTagsCount[tagID] === selectedRowsCount)
+  const selectedTagsAll = Object.keys(selectedRowsCountByTag)
+    .filter((tagID) => selectedRowsCountByTag[tagID] === selectedRowsCount)
     .map((tagID) => Number(tagID));
-  const selectedTagsSome = Object.keys(selectedTagsCount)
-    .filter((tagID) => selectedTagsCount[tagID] < selectedRowsCount)
+  const selectedTagsSome = Object.keys(selectedRowsCountByTag)
+    .filter((tagID) => selectedRowsCountByTag[tagID] < selectedRowsCount)
     .map((tagID) => Number(tagID));
   return (
     <div
       className={cn(
-        'fixed bottom-20 z-50 flex translate-x-1/2 items-center gap-1',
+        'bg-primary fixed bottom-[5dvh] z-50 flex translate-x-1/2 gap-0.5 rounded-l-lg rounded-r-lg p-1',
         enableSidebarIndent ? 'right-[calc((100%-287px)/2)]' : 'right-1/2'
       )}
     >
       <Button
-        variant="outline"
-        className="bg-primary-foreground rounded-full"
-        onClick={() => table.toggleAllPageRowsSelected(!table.getIsAllPageRowsSelected())}
+        className="hover:bg-muted-foreground dark:hover:bg-accent-foreground group flex items-center gap-2 rounded-l-lg rounded-r-lg py-1.5"
+        variant="default"
+        onClick={() => {
+          table.toggleAllPageRowsSelected(!table.getIsAllPageRowsSelected());
+          store.setKeepBulkActionsToolbar(true);
+        }}
       >
-        {(table.getIsAllPageRowsSelected() && <SquareCheckBig />) ||
-          (table.getIsSomePageRowsSelected() && <SquareMinus />) || <Square />}
-        <span className="whitespace-nowrap">{table.getFilteredSelectedRowModel().rows.length} selected</span>
+        {(table.getIsSomePageRowsSelected() && <SquareMinus />) ||
+          (table.getIsAllPageRowsSelected() && <SquareCheckBig />) || <Square />}
+
+        <Separator className="bg-primary-foreground" orientation="vertical" />
+
+        <span className="whitespace-nowrap">{selectedRowsCount} selected</span>
       </Button>
 
       <TagSelect selectedTagsAll={selectedTagsAll} selectedTagsSome={selectedTagsSome} onSubmit={updateTagsSelected}>
-        <Button variant="outline" className="bg-primary-foreground rounded-full">
+        <Button
+          disabled={!selectedRowsCount}
+          variant="default"
+          className="hover:bg-muted-foreground dark:hover:bg-accent-foreground rounded-lg"
+        >
           <TagsIcon />
           <span className="hidden @md/main:block">Tags</span>
         </Button>
       </TagSelect>
 
       <Button
-        variant="outline"
+        variant="default"
         onClick={refetchSelected}
-        disabled={fetchInProgress}
-        className="bg-primary-foreground rounded-full disabled:opacity-100"
+        disabled={fetchInProgress || !selectedRowsCount}
+        className="hover:bg-muted-foreground dark:hover:bg-accent-foreground rounded-lg"
       >
         {fetchInProgress ? <RefreshCw className="animate-spin" /> : <RefreshCw />}
         <span className="hidden @md/main:block">Refetch</span>
       </Button>
 
-      <DeleteDialog onConfirm={deleteSelected} itemsCount={table.getFilteredSelectedRowModel().rows.length}>
-        <Button variant="outline" disabled={deleteInProgress} className="bg-primary-foreground rounded-full">
+      <DeleteDialog onConfirm={deleteSelected} itemsCount={selectedRowsCount}>
+        <Button
+          variant="default"
+          disabled={deleteInProgress || !selectedRowsCount}
+          className="hover:bg-muted-foreground dark:hover:bg-accent-foreground rounded-lg"
+        >
           {deleteInProgress ? <Spinner /> : <Trash />}
           <span className="hidden @md/main:block">Delete</span>
         </Button>
       </DeleteDialog>
       <Button
-        variant="outline"
+        variant="default"
         size="icon"
-        onClick={() => table.resetRowSelection()}
-        className="bg-primary-foreground rounded-full"
+        onClick={() => {
+          store.setKeepBulkActionsToolbar(false);
+          table.resetRowSelection();
+        }}
+        className="hover:bg-muted-foreground dark:hover:bg-accent-foreground rounded-lg"
       >
         <X />
       </Button>

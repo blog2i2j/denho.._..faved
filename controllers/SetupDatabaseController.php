@@ -48,7 +48,7 @@ class SetupDatabaseController implements ControllerInterface
 			], 500);
 		}
 
-		createWelcomeContent($repository);
+		createWelcomeContent();
 
 		createDemoContent($repository);
 

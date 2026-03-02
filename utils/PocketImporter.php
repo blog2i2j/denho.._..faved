@@ -4,6 +4,9 @@ namespace Utils;
 
 use DateTime;
 use Exception;
+use Framework\ServiceContainer;
+use Models\Item;
+use Models\ItemCreator;
 use Models\Repository;
 use Models\TagCreator;
 
@@ -25,7 +28,7 @@ class PocketImporter
 	{
 		// Extract data from file
 		[$collections, $collection_bookmarks] = $this->extractDataFromCollections($temp_dir);
-		[$tags, $statuses, $items] = $this->extractDataFromLinks($temp_dir, $collection_bookmarks);
+		[$tags, $statuses, $bookmarks] = $this->extractDataFromLinks($temp_dir, $collection_bookmarks);
 
 		$existing_tags = $this->repository->getTags();
 
@@ -45,8 +48,8 @@ class PocketImporter
 		$status_parent_tag_id = $status_parent_tag_map[self::STATUS_PARENT_TAG_NAME];
 		$status_tag_map = $this->writeTags($existing_tags, $statuses, $status_parent_tag_id);
 
-		// Create bookmark items
-		$this->writeItems($items, $tag_map, $collection_tag_map, $status_tag_map);
+		// Save items to DB
+		$items = $this->saveItems($bookmarks, $tag_map, $collection_tag_map, $status_tag_map);
 
 		return count($items);
 	}
@@ -108,7 +111,7 @@ class PocketImporter
 				throw new Exception('Invalid CSV format in file: ' . $csv_file);
 			}
 
-			$items = [];
+			$bookmarks = [];
 			$all_tags = [];
 			$statuses = [];
 			while (($data = fgetcsv($handle, 0, ',', '"', '\\')) !== false) {
@@ -123,15 +126,15 @@ class PocketImporter
 				$tags[] = self::IMPORT_FROM_POCKET_TAG_NAME;
 
 
-				$comments = $collection_bookmarks[$url]['notes'] ?? [];
-				$comments = array_filter($comments, fn($comment) => $comment !== '');
-				if (count($comments) === 1) {
-					$comments = array_values($comments)[0];
+				$notes = $collection_bookmarks[$url]['notes'] ?? [];
+				$notes = array_filter($notes, fn($comment) => $comment !== '');
+				if (count($notes) === 1) {
+					$notes = array_values($notes)[0];
 				} else {
-					$comments = array_map(function ($comment, $collection_title) {
+					$notes = array_map(function ($comment, $collection_title) {
 						return sprintf(self::NOTE_FROM_POCKET_COLLECTION_CAPTION, $collection_title) . $comment;
-					}, $comments, array_keys($comments));
-					$comments = implode("\n\n", $comments);
+					}, $notes, array_keys($notes));
+					$notes = implode("\n\n", $notes);
 
 				}
 
@@ -139,15 +142,15 @@ class PocketImporter
 					$title = $collection_bookmarks[$url]['title'];
 				}
 
-				$items[] = [
+				$bookmarks[] = [
 					'title' => $title,
-					'description' => $collection_bookmarks[$url]['excerpt'] ?? '',
+					'excerpt' => $collection_bookmarks[$url]['excerpt'] ?? '',
 					'url' => $url,
-					'comments' => $comments,
+					'notes' => $notes,
 					'collections' => $collection_bookmarks[$url]['attached_collections'] ?? [],
 					'tags' => $tags,
 					'status' => $status,
-					'created_at' => $time_added,
+					'time_added' => $time_added,
 				];
 
 				$all_tags = array_reduce($tags, function ($carry, $tag_name) {
@@ -159,7 +162,7 @@ class PocketImporter
 			fclose($handle);
 		}
 
-		return [$all_tags, $statuses, $items];
+		return [$all_tags, $statuses, $bookmarks];
 	}
 
 	protected function writeTags($existing_tags, $tag_titles, $parent_tag_id)
@@ -182,25 +185,28 @@ class PocketImporter
 		return $tag_map;
 	}
 
-	protected function writeItems($items, $tag_map, $collection_map, $status_map)
+	protected function saveItems($bookmarks, $tag_map, $collection_map, $status_map)
 	{
-		array_walk($items, function ($item) use ($tag_map, $collection_map, $status_map) {
-
-			$item_id = $this->repository->createItem(
-				$item['title'],
-				$item['description'],
-				$item['url'],
-				$item['comments'],
-				'',
-				$item['created_at']->format('Y-m-d H:i:s'),
-			);
-
+		$items = array_map(function ($bookmark) use ($tag_map, $collection_map, $status_map) {
 			$tag_ids = array_merge(
-				array_intersect_key($tag_map, array_flip($item['tags'])),
-				array_intersect_key($collection_map, array_flip($item['collections'])),
-				array_intersect_key($status_map, array_flip([$item['status']])),
+				array_intersect_key($tag_map, array_flip($bookmark['tags'])),
+				array_intersect_key($collection_map, array_flip($bookmark['collections'])),
+				array_intersect_key($status_map, array_flip([$bookmark['status']])),
 			);
-			$this->repository->attachItemsTags([$item_id], $tag_ids);
-		});
+
+			return new Item (
+				$bookmark['url'],
+				$bookmark['title'],
+				$bookmark['excerpt'],
+				'',
+				$bookmark['notes'],
+				$tag_ids,
+				$bookmark['time_added'],
+			);
+
+		}, $bookmarks);
+
+		$item_creator = ServiceContainer::get(ItemCreator::class);
+		return $item_creator->createItems($items);
 	}
 }

@@ -10,18 +10,25 @@ use Framework\ServiceContainer;
 use Models\Repository;
 use Models\TagCreator;
 use Utils\BookmarkImporter;
-use function Framework\data;
+use function Framework\success;
 
 class ImportBookmarksController implements ControllerInterface
 {
 	public function __invoke(array $input): ResponseInterface
 	{
 		try {
-			if (!isset($_FILES['browser-html']) || $_FILES['browser-html']['error'] !== UPLOAD_ERR_OK) {
+			if (!isset($_POST['import-source-name']) || !in_array($_POST['import-source-name'], ['browser', 'Raindrop.io'])) {
+				throw new ValidationException('Invalid import source');
+			}
+			$import_source = $_POST['import-source-name'];
+
+			$file_input_name = 'bookmark-file-html';
+
+			if (!isset($_FILES[$file_input_name]) || $_FILES[$file_input_name]['error'] !== UPLOAD_ERR_OK) {
 				throw new ValidationException('No file uploaded or upload error');
 			}
 
-			$uploaded_file = $_FILES['browser-html'];
+			$uploaded_file = $_FILES[$file_input_name];
 
 			// Check if the file is a HTML
 			if ($uploaded_file['type'] !== 'text/html') {
@@ -35,7 +42,8 @@ class ImportBookmarksController implements ControllerInterface
 
 			$importer = new BookmarkImporter(
 				ServiceContainer::get(Repository::class),
-				ServiceContainer::get(TagCreator::class)
+				ServiceContainer::get(TagCreator::class),
+				$import_source
 			);
 
 			$skipped_count = 0;
@@ -45,10 +53,7 @@ class ImportBookmarksController implements ControllerInterface
 				throw new ValidationException('No bookmarks found in the uploaded file');
 			}
 
-			return data([
-				'success' => true,
-				'message' => "{$import_count} bookmarks imported successfully, {$skipped_count} bookmarks skipped."
-			]);
+			return success("{$import_count} bookmarks imported successfully, {$skipped_count} bookmarks skipped.");
 
 		} catch (Exception $e) {
 

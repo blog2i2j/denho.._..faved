@@ -2,6 +2,7 @@
 
 use Framework\Exceptions\DatabaseNotFound;
 use Framework\ServiceContainer;
+use Models\ItemCreator;
 use Models\TagCreator;
 
 // Bind DB services
@@ -28,4 +29,9 @@ ServiceContainer::bind(Models\Repository::class, function () {
 ServiceContainer::bind(TagCreator::class, function () {
 	$pdo = ServiceContainer::get(PDO::class);
 	return new TagCreator($pdo);
+});
+
+ServiceContainer::bind(ItemCreator::class, function () {
+	$pdo = ServiceContainer::get(PDO::class);
+	return new ItemCreator($pdo);
 });

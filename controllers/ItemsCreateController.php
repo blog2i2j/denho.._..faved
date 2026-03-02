@@ -7,6 +7,8 @@ use Framework\Exceptions\DataWriteException;
 use Framework\Exceptions\ValidationException;
 use Framework\Responses\ResponseInterface;
 use Framework\ServiceContainer;
+use Models\Item;
+use Models\ItemCreator;
 use Models\Repository;
 use Respect\Validation\Validator;
 use function Framework\success;
@@ -28,34 +30,32 @@ class ItemsCreateController implements ControllerInterface
 		$repository = ServiceContainer::get(Repository::class);
 
 		// Handle tags
-		$new_tag_ids = array_map('intval', $input['tags']);
+		$input_tag_ids = array_map('intval', $input['tags']);
 		$tags = $repository->getTags();
 		$exising_tag_ids = array_keys($tags);
-		if (array_diff($new_tag_ids, $exising_tag_ids)) {
+		if (array_diff($input_tag_ids, $exising_tag_ids)) {
 			throw new ValidationException('Non-existing tags provided');
 		}
 
 		// Save item in DB
-		$url = $input['url'];
-		$title = $input['title'];
-		$description = $input['description'];
-		$image = $input['image'];
-		$comments = $input['comments'];
+		$item_creator = ServiceContainer::get(ItemCreator::class);
+		[$item] = $item_creator->createItems([
+			new Item(
+				$input['url'],
+				$input['title'],
+				$input['description'],
+				$input['image'] ?? '',
+				$input['comments'] ?? '',
+				$input_tag_ids
+			)
+		]);
 
-		$item_id = $repository->createItem($title, $description, $url, $comments, $image);
-
-		if (!$item_id) {
+		if (!$item || !$item->id) {
 			throw new DataWriteException('Item creation failed');
 		}
 
-		$result = $repository->setItemTags($new_tag_ids, $item_id);
-
-		if (!$result) {
-			throw new DataWriteException('Setting item tags failed');
-		}
-
 		return success('Item created successfully', [
-			'item_id' => $item_id,
+			'item_id' => $item->id,
 		]);
 	}
 }

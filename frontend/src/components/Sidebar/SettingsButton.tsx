@@ -23,7 +23,7 @@ export const SettingsButton = observer(() => {
       className="relative"
       onClick={() => {
         store.setPreSelectedItemSettingsModal(null);
-        store.setIsOpenSettingsModal(true);
+        store.setIsSettingsModalOpen(true);
         if (isMobile) {
           toggleSidebar();
         }

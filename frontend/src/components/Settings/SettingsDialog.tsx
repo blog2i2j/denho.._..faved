@@ -44,7 +44,7 @@ export const SettingsDialog = observer(() => {
   const selectedNavTitle = navLinks.find((item) => item.id === selectedNav)?.title;
 
   return (
-    <Dialog open={true} onOpenChange={store.setIsOpenSettingsModal}>
+    <Dialog open={true} onOpenChange={store.setIsSettingsModalOpen}>
       <DialogContent className="w-[100dvw] max-w-6xl overflow-hidden rounded-none p-0 md:w-[95dvw] md:rounded-lg">
         <div className="relative h-[100dvh] p-3 pt-15 md:h-[95dvh] md:max-h-[1000px] md:pt-3">
           <DialogHeader className="fixed top-6 w-full md:sr-only">

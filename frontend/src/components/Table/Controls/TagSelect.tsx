@@ -17,6 +17,7 @@ import { getColorClass } from '@/components/Table/Fields/TagBadge.tsx';
 import { Checkbox } from '@/components/ui/checkbox.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Spinner } from '@/components/ui/spinner.tsx';
+import { cn } from '@/lib/utils.ts';
 
 export const TagSelect = observer(
   ({
@@ -82,7 +83,8 @@ export const TagSelect = observer(
       >
         <PopoverTrigger asChild>{children}</PopoverTrigger>
         <PopoverContent
-          className={[className, 'overflow-y-hidden p-0'].join(' ')}
+          sideOffset={7}
+          className={cn(className, 'overflow-y-hidden p-0 invert')}
           align="center"
           // Required to make the popover scrollable with mouse wheel and touch move inside modal
           onWheel={(e) => e.stopPropagation()}
@@ -120,7 +122,7 @@ export const TagSelect = observer(
                         }
                         aria-label="Select all"
                       />
-                      <span className={`h-3 w-3 flex-none rounded-full ${getColorClass(tag.color)}`}></span>
+                      <span className={`h-3 w-3 flex-none rounded-full invert ${getColorClass(tag.color)}`}></span>
                       <span>{tag.fullPath}</span>
                     </CommandItem>
                   ))}

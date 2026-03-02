@@ -5,20 +5,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../ui/tabs';
 import React, { useContext, useRef, useState } from 'react';
 import { StoreContext } from '@/store/storeContext';
-import { Loader2Icon } from 'lucide-react';
 import {
   IconBrandChrome,
   IconBrandEdge,
   IconBrandFirefox,
   IconBrandPocket,
   IconBrandSafari,
+  IconCloud,
 } from '@tabler/icons-react';
+import { Spinner } from '@/components/ui/spinner.tsx';
+
+enum ImportSource {
+  POCKET = 'Pocket',
+  BROWSER = 'Browser',
+  RAINDROP_IO = 'Raindrop.io',
+}
 
 export const SettingsImport = ({ onSuccess }: { onSuccess?: () => void }) => {
   const store = useContext(StoreContext);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pocket' | 'browser'>('browser');
+  const [activeTab, setActiveTab] = useState<ImportSource>(ImportSource.BROWSER);
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -26,15 +33,20 @@ export const SettingsImport = ({ onSuccess }: { onSuccess?: () => void }) => {
     setSelectedFile(file);
   };
 
-  const submitPocket = async () => {
-    const success = await store.importPocketBookmarks(selectedFile, setIsLoading);
-    if (success && onSuccess) {
-      onSuccess();
-    }
-  };
+  const submit = async () => {
+    let success;
+    setIsLoading(true);
 
-  const submitBrowser = async () => {
-    const success = await store.importBrowserBookmarks(selectedFile, setIsLoading);
+    if (activeTab === ImportSource.POCKET) {
+      success = await store.importPocketBookmarks(selectedFile);
+    } else if (activeTab === ImportSource.BROWSER) {
+      success = await store.importBrowserBookmarks(selectedFile);
+    } else if (activeTab === ImportSource.RAINDROP_IO) {
+      success = await store.importRaindropIoBookmarks(selectedFile);
+    }
+
+    setIsLoading(false);
+
     if (success && onSuccess) {
       onSuccess();
     }
@@ -47,8 +59,8 @@ export const SettingsImport = ({ onSuccess }: { onSuccess?: () => void }) => {
     }
   };
 
-  const handleTabChange = (value: string) => {
-    setActiveTab(value as 'pocket' | 'browser');
+  const handleTabChange = (value: ImportSource) => {
+    setActiveTab(value);
     resetFile();
   };
 
@@ -59,21 +71,33 @@ export const SettingsImport = ({ onSuccess }: { onSuccess?: () => void }) => {
         <CardDescription>Import your bookmarks to Faved.</CardDescription>
       </CardHeader>
       <CardContent>
-        <Tabs value={activeTab} onValueChange={handleTabChange}>
-          <TabsList className="h-auto w-full items-stretch">
-            <TabsTrigger value="browser" className="flex flex-wrap">
+        <Tabs value={activeTab} onValueChange={handleTabChange} orientation="vertical">
+          <TabsList className="@container/tablist h-auto w-full items-stretch">
+            <TabsTrigger value={ImportSource.BROWSER} className="flex flex-col flex-wrap @sm/tablist:flex-row">
               <div className="inline-flex items-center gap-0.5">
                 <IconBrandChrome className="h-4 w-4" />
               </div>
-              <span>From browser</span>
+              <span>
+                <span className="hidden @lg/tablist:inline">From</span> Browser
+              </span>
             </TabsTrigger>
-            <TabsTrigger value="pocket" className="flex flex-wrap">
+            <TabsTrigger value={ImportSource.RAINDROP_IO} className="flex flex-col flex-wrap @sm/tablist:flex-row">
+              <div className="inline-flex items-center gap-0.5">
+                <IconCloud className="h-4 w-4" />
+              </div>
+              <span>
+                <span className="hidden @lg/tablist:inline">From</span> Raindrop.io
+              </span>
+            </TabsTrigger>
+            <TabsTrigger value={ImportSource.POCKET} className="flex flex-col flex-wrap @sm/tablist:flex-row">
               <IconBrandPocket className="h-4 w-4" />
-              <span>From Pocket</span>
+              <span>
+                <span className="hidden @lg/tablist:inline">From</span> Pocket
+              </span>
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="pocket" className="mt-4 space-y-4">
+          <TabsContent value={ImportSource.POCKET} className="mt-4 space-y-4">
             <div className="space-y-3">
               <Label htmlFor="pocket-zip">Pocket ZIP Archive</Label>
               <Input
@@ -105,11 +129,11 @@ export const SettingsImport = ({ onSuccess }: { onSuccess?: () => void }) => {
             </div>
           </TabsContent>
 
-          <TabsContent value="browser" className="mt-4 space-y-4">
+          <TabsContent value={ImportSource.BROWSER} className="mt-4 space-y-4">
             <div className="space-y-3">
-              <Label htmlFor="bookmarks-html">Bookmarks HTML File</Label>
+              <Label htmlFor="browser-bookmarks-html">Bookmarks HTML File</Label>
               <Input
-                id="bookmarks-html"
+                id="browser-bookmarks-html"
                 accept=".html,.htm"
                 type="file"
                 ref={inputRef}
@@ -141,17 +165,43 @@ export const SettingsImport = ({ onSuccess }: { onSuccess?: () => void }) => {
               </ul>
             </div>
           </TabsContent>
+
+          <TabsContent value={ImportSource.RAINDROP_IO} className="mt-4 space-y-4">
+            <div className="space-y-3">
+              <Label htmlFor="raindropio-bookmarks-html">Raindrop.io HTML File</Label>
+              <Input
+                id="raindropio-bookmarks-html"
+                accept=".html,.htm"
+                type="file"
+                ref={inputRef}
+                onChange={handleFileChange}
+                disabled={isLoading}
+              />
+              <p className="text-muted-foreground text-sm">
+                Select your exported Raindrop.io bookmarks file in HTML format.
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-blue-800 dark:bg-blue-900/20">
+              <div className="mb-2 flex items-center gap-2">
+                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-500">
+                  <span className="text-xs font-semibold text-white">i</span>
+                </div>
+                <h3 className="text-lg font-semibold tracking-tight dark:text-blue-200">What will be imported:</h3>
+              </div>
+              <ul className="mt-3 ml-4 list-disc space-y-2 text-sm">
+                <li>All Raindrop.io bookmarks, collections and tags.</li>
+                <li>Bookmark collections will be converted to tags.</li>
+                <li>All bookmarks will have "Imported from Raindrop.io" tag.</li>
+              </ul>
+            </div>
+          </TabsContent>
         </Tabs>
       </CardContent>
       <CardFooter>
-        <Button
-          className="w-full"
-          onClick={activeTab === 'pocket' ? submitPocket : submitBrowser}
-          disabled={!selectedFile || isLoading}
-          type="submit"
-        >
-          {isLoading && <Loader2Icon className="mr-2 animate-spin" />}
-          Import {activeTab === 'pocket' ? 'Pocket' : 'Browser'} Bookmarks
+        <Button className="w-full" onClick={submit} disabled={!selectedFile || isLoading} type="submit">
+          {isLoading && <Spinner />}
+          Import {activeTab} Bookmarks
         </Button>
       </CardFooter>
     </Card>

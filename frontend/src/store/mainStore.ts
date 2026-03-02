@@ -20,8 +20,7 @@ class mainStore {
   user: UserType | null = null;
   isAuthRequired = null;
   isSetupRequired = null;
-  error: string | null = null;
-  isOpenSettingsModal: boolean = false;
+  isSettingsModalOpen: boolean = false;
   preSelectedItemSettingsModal: string | null = null;
   tagFilter: TagFilterType = null; // Default to null for no tag selected. 'none' for without any tags
   isItemModalOpen: boolean = false;
@@ -31,6 +30,7 @@ class mainStore {
     latest_version: string | null;
     update_available: boolean | null;
   } | null = null;
+  keepBulkActionsToolbar = false;
 
   constructor() {
     makeAutoObservable(this); // Makes state observable and actions transactional
@@ -209,8 +209,8 @@ class mainStore {
   setIsItemModalOpen = (val: boolean) => {
     this.isItemModalOpen = val;
   };
-  setIsOpenSettingsModal = (val: boolean) => {
-    this.isOpenSettingsModal = val;
+  setIsSettingsModalOpen = (val: boolean) => {
+    this.isSettingsModalOpen = val;
   };
   setPreSelectedItemSettingsModal = (val: string) => {
     this.preSelectedItemSettingsModal = val;
@@ -381,35 +381,44 @@ class mainStore {
       return true;
     });
   };
-  importPocketBookmarks = async (selectedFile: File, setIsLoading: (val: boolean) => void) => {
-    return this.importBookmarks(selectedFile, setIsLoading, 'pocket-zip', API_ENDPOINTS.importBookmarks.pocket);
+  importPocketBookmarks = async (selectedFile: File) => {
+    return await this.importBookmarks(selectedFile, 'pocket-zip', API_ENDPOINTS.importBookmarks.pocket);
   };
 
-  importBrowserBookmarks = async (selectedFile: File, setIsLoading: (val: boolean) => void) => {
-    return this.importBookmarks(selectedFile, setIsLoading, 'browser-html', API_ENDPOINTS.importBookmarks.browser);
+  importBrowserBookmarks = async (selectedFile: File) => {
+    return await this.importBookmarks(
+      selectedFile,
+      'bookmark-file-html',
+      API_ENDPOINTS.importBookmarks.browser,
+      'browser'
+    );
   };
-  importBookmarks = async (
-    selectedFile: File,
-    setIsLoading: (val: boolean) => void,
-    inputName: string,
-    endpointUrl: string
-  ) => {
+
+  importRaindropIoBookmarks = async (selectedFile: File) => {
+    return await this.importBookmarks(
+      selectedFile,
+      'bookmark-file-html',
+      API_ENDPOINTS.importBookmarks.browser,
+      'Raindrop.io'
+    );
+  };
+
+  importBookmarks = async (selectedFile: File, inputName: string, endpointUrl: string, importSourceName?: string) => {
     const formData = new FormData();
     formData.append(inputName, selectedFile);
+    if (importSourceName) {
+      formData.append('import-source-name', importSourceName);
+    }
 
-    setIsLoading(true);
-
-    return this.runRequest(endpointUrl, 'POST', formData, 'Failed to import bookmarks')
-      .then((response) => {
-        if (response === null) {
-          return false;
-        }
-        this.setIsOpenSettingsModal(false);
-        this.fetchItems();
-        this.fetchTags();
-        return true;
-      })
-      .finally(() => setIsLoading(false));
+    return await this.runRequest(endpointUrl, 'POST', formData, 'Failed to import bookmarks').then((response) => {
+      if (response === null) {
+        return false;
+      }
+      this.setIsSettingsModalOpen(false);
+      this.fetchItems();
+      this.fetchTags();
+      return true;
+    });
   };
 
   fetchUrlMetadata = async (url: string) => {
@@ -430,6 +439,10 @@ class mainStore {
 
     this.appInfo = response.data;
     return response.data;
+  };
+
+  setKeepBulkActionsToolbar = (val: boolean) => {
+    this.keepBulkActionsToolbar = val;
   };
 }
 
