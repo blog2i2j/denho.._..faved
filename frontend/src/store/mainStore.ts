@@ -32,6 +32,18 @@ class mainStore {
   } | null = null;
   keepBulkActionsToolbar = false;
 
+  /*
+  Demo >
+  */
+  hideOnboardingBanner = true;
+
+  setHideOnboardingBanner = (val) => {
+    this.hideOnboardingBanner = val;
+  };
+  /*
+  ^ Demo
+  */
+
   constructor() {
     makeAutoObservable(this); // Makes state observable and actions transactional
   }

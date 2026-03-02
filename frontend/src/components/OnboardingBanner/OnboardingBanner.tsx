@@ -1,11 +1,14 @@
 import { Link } from 'react-router-dom';
 import { X } from 'lucide-react';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
+import { StoreContext } from '@/store/storeContext.ts';
+import { observer } from 'mobx-react-lite';
 
-export const OnboardingBanner = () => {
+export const OnboardingBanner = observer(() => {
   const [isVisible, setIsVisible] = useState(true);
+  const store = useContext(StoreContext);
 
-  if (!isVisible) {
+  if (!isVisible || store.hideOnboardingBanner) {
     return null;
   }
 
@@ -29,4 +32,4 @@ export const OnboardingBanner = () => {
       </div>
     </div>
   );
-};
+});

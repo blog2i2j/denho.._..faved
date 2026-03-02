@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button.tsx';
 import { RefreshCw, Square, SquareCheckBig, SquareMinus, TagsIcon, Trash, X } from 'lucide-react';
 import { StoreContext } from '@/store/storeContext.ts';
@@ -48,7 +49,13 @@ export const BulkActionControls = ({ table }) => {
     return true;
   };
 
-  if (selectedRowsCount === 0 && !store.keepBulkActionsToolbar) {
+  const showToolbar = selectedRowsCount > 0 || store.keepBulkActionsToolbar;
+
+  useEffect(() => {
+    store.setHideOnboardingBanner(showToolbar);
+  }, [showToolbar, store]);
+
+  if (!showToolbar) {
     return null;
   }
   const selectedTags = selectedRows.map((row) => row.original.tags).flat();
