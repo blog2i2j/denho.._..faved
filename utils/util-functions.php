@@ -404,6 +404,7 @@ function getRemoteImageContents($url)
 		'image/svg+xml',
 		'image/bmp',
 		'image/tiff',
+		'image/avif',
 	];
 	if (!in_array($content_type, $allowed_types)) {
 		throw new ValidationException('Unsupported image type: ' . $content_type);
